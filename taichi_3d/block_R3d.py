@@ -66,10 +66,9 @@ def block_R3d(R):
 
     tmp = tmp.ravel()
 
-    i = np.repeat(np.arange(1, 9 * n + 1), 6)
-    el_offset = np.repeat(np.arange(0, 6 * n, 6), 54)
+    i = np.tile(np.arange(1, 9 * n + 1), 6)
+    el_offset = np.tile(np.arange(0, 6 * n, 6), 54)
     j = np.tile(np.arange(1, 7), 9 * n)
-
     num_triplets = len(i)
 
     ti.init(arch=ti.cpu, default_fp=ti.f32, kernel_profiler=True, default_ip=ti.i32)   # Initialize Taichi
@@ -77,14 +76,15 @@ def block_R3d(R):
     builder = SparseMatrixBuilder(9 * n, 6 * n, max_num_triplets=num_triplets * 2)
 
     @ti.kernel
-    def fill_taichi_matrix(tmp: ti.ext_arr(), i: ti.ext_arr(), j: ti.ext_arr(), builder: ti.sparse_matrix_builder()):
+    def fill_taichi_matrix(tmp: ti.ext_arr(), i: ti.ext_arr(), j: ti.ext_arr(), el_offset: ti.ext_arr(), builder: ti.sparse_matrix_builder()):
         for k in range(num_triplets):
             row = ti.cast(i[k] - 1, ti.i32)
-            col = ti.cast(j[k] - 1, ti.i32)
+            idx = el_offset[k] + j[k]
+            col = ti.cast(idx - 1, ti.i32)
             value = tmp[k]
             builder[row, col] += value
 
-    fill_taichi_matrix(tmp, i, j, builder)
+    fill_taichi_matrix(tmp, i, j, el_offset, builder)
 
     blockR_taichi = builder.build()
 

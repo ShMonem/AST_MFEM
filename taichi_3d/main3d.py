@@ -4,6 +4,7 @@ import scipy as sp
 import numpy as np
 import meshplot
 from meshplot import plot, subplot, interact
+import scipy.sparse as sps
 meshplot.offline()
 
 import os
@@ -12,12 +13,20 @@ import meshio
 
 # io for reading .mat files
 import scipy.io as sio
+
+#import bartels python bindings
+import sys
+sys.path.append("../../Bartels/python/build/")
+import bartelspy as bt
 ## ----------------------------------------------------------
 from closest_index import *
 from build_U import *
 from tetAssignment import *
 from fill_euler import *
 from forward_kinematics import *
+from block_R3d import *
+from pinvert import *
+from igl2bart import *
 ## ----------------------------------------------------------
 ## Load a mesh in OFF format
 _, Ft = igl.read_triangle_mesh(("../data/output_mfem1.msh"))
@@ -31,7 +40,7 @@ print("Tets: ", len(Tt), Tt.shape)
 
 # Taichi: adjusting parameters data types for parallelizatio
 ti.init(arch=ti.cpu)
-V = ti.Vector.field(3, dtype=ti.i32, shape=Vt.shape[0])
+V = ti.Vector.field(3, dtype=ti.f32, shape=Vt.shape[0])
 F = ti.Vector.field(3, dtype=ti.i32, shape=Ft.shape[0])
 T = ti.Vector.field(3, dtype=ti.i32, shape=Tt.shape[0])
 
@@ -101,6 +110,16 @@ and contains the closes index of midpoint for each tet
 # initialize taichi template to be filled by tetAssignment
 midpoints = ti.Vector.field(3, dtype=ti.f32, shape=midpointst.shape[0])
 midpoints.from_numpy(midpointst)
+
+# H contains handles with midpoints, the total skeleton joints that we used to attach with tetmesh
+# H: [n + (n - 1), 3], where n is the number of handles, n-1 is the number of midpoints
+num_handles = handles.shape[0]
+num_midpoints = midpointst.shape[0]
+Ht = np.zeros((num_handles + num_midpoints, 3))
+Ht[:num_handles, :] = handles
+Ht[num_handles:, :] = midpoints.to_numpy()
+
+
 fAssign = ti.field(dtype=ti.i32, shape=Tt.shape[0])
 tetAssignment(V, T, midpoints, fAssign)   # we use midpoint for rotation
 # print(fAssign) ## TODO: double check results with matlab
@@ -123,11 +142,72 @@ newR = np.zeros((n_newR, 9))
 Tdummy[:, [0, 4, 8]] = 1
 newR[:, [0, 4, 8]] = 1
 new_handles = np.zeros_like(handles)
-
-#forward_kinematics(handles, hier, eulers, Tdummy, new_handles, newR)
+forward_kinematics(handles, hier, eulers, Tdummy, new_handles, newR) # TODO: we are replacing this step 
 #print(newR)
+
+# assigning rotations to each tet according to fAssign info
+# this is slow, could be improved
+rows_T = Tt.shape[0]
+fAssign = fAssign.to_numpy()
+R = np.zeros((rows_T, 9))
+for i in range(rows_T):
+    R[i, :] = newR[fAssign[i], :]
+
+# R_mat: [9T, 6T]
+R_mat = block_R3d(R)
+
+# vAssign: [V, 1] contains the closest handles' index for each vertex
+# computation is same as fAssign
+
+# initiate dummy mats used by taichi
+vAssign = ti.field(ti.i32, shape=(Vt.shape[0],))
+Dt = ti.field(ti.f32, shape=(Vt.shape[0], Ht.shape[0]))
+
+# for some very wird reason, at this point "V" was not known to the compiler 
+# any more and I needed to re define it!. TODO (fix it!)
+V = ti.field(ti.f32, shape=(Vt.shape[0], 3))
+H = ti.field(ti.f32, shape=(Ht.shape[0], 3))
+
+V.from_numpy(Vt)
+H.from_numpy(Ht)
+
+pinvert(V, H, vAssign, Dt)
+#print(vAssign)
+I = np.eye(3)
+
+# Here we re-order vertex positions and stack them in one long vector
+# q = [x0, y0, z0, x1, y1, z1,..., xn, yn, zn] (Bartel's way of doing things! :-D)
+q =igl2bart(Vt)
+
+
+# compute pinned_mat
+# pinned_mat: [3H, 3V], where H is the total number of handles (joint + midpoint)
+pinned_mat = sps.lil_matrix((3 * H.shape[0], 3 * V.shape[0]))
+vAssign = vAssign.to_numpy()
+for i in range(H.shape[0]):
+    pinned_mat[3*i:3*(i+1), 3*vAssign[i]-3:3*vAssign[i]] = I
+
+# Because we apply forward kinematics, so, we need to recompute pinned b
+# But now we have already known the new joints position, so, we only need to compute the midpoint again
+midpoints = np.zeros((new_handles.shape[0] - 1, 3))
+for i in range(new_handles.shape[0]):
+    if hier[i] == 0:
+        continue
+    else:
+        midpoints[i-1, :] = (new_handles[i, :] + new_handles[hier[i], :]) / 2
+
+new_new_handles = np.zeros((new_handles.shape[0] + midpoints.shape[0], 3))
+new_new_handles[:new_handles.shape[0], :] = new_handles
+new_new_handles[new_handles.shape[0]:, :] = midpoints
+
+# Assuming you have already defined the igl2bart() function
+pinned_b = igl2bart(new_new_handles)
+
+
+
 ## plot mesh
 #k = igl.gaussian_curvature(Vt, Ft)
+
 
 """
 # comment for now so that no more .html generated
