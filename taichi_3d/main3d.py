@@ -17,6 +17,7 @@ from closest_index import *
 from build_U import *
 from tetAssignment import *
 from fill_euler import *
+from forward_kinematics import *
 ## ----------------------------------------------------------
 ## Load a mesh in OFF format
 _, Ft = igl.read_triangle_mesh(("../data/output_mfem1.msh"))
@@ -54,7 +55,7 @@ PIt = sio.loadmat("../data/PI.mat") ## to access the entries from the dict use: 
 # also a dummy vectorfield used by the function "closest_index" for intermediate commputations
 weight = ti.field(ti.i32, shape=Vt.shape[0])
 D = ti.Vector.field(Pt['P'].shape[0], dtype=ti.f32, shape=Vt.shape[0])
-P = ti.Vector.field(3, dtype=ti.i32, shape=Pt['P'].shape[0])
+P = ti.Vector.field(3, dtype=ti.f32, shape=Pt['P'].shape[0])
 P.from_numpy(Pt['P'])
 
 # compute the weights per vertex and store them in "weight"
@@ -79,7 +80,7 @@ Build the reduced subspace basis mat U, where U is the prolongation matrix intro
 handlest = sio.loadmat('../data/handles.mat') 
 hiert = sio.loadmat("../data/hierarchy.mat") 
 handles = handlest['position'] ## to access the mat from the dict use: handles['position'] (numHandels, 3)
-hier = hiert['hierarchy'] ## to access the entries from the dict use: hiert['hierarchy']  (numHandles, 2)
+hier = hiert['hierarchy'][:, 1] ## to access the entries from the dict use: hiert['hierarchy']  (numHandles, 2)
 
 """
 As we are working on a complex model, we need to pin more than joints vertices (?)
@@ -88,10 +89,10 @@ We also assign each tet's rotation with its closest midpoint rather than the joi
 # compute midpoint of each bone
 midpointst = np.zeros((handles.shape[0]-1, 3))
 for i in range(handles.shape[0]):
-    if hier[i, 0] == 0:
+    if hier[i] == 0:
         continue
     else:
-        midpointst[i - 1, :] = (handles[i, :] + handles[int(hier[i, 0])-1, :]) / 2
+        midpointst[i - 1, :] = (handles[i, :] + handles[int(hier[i])-1, :]) / 2
 """
 Compute tet blongings
 fAssign is computed in a same way as weight above, size (T, 1),
@@ -107,6 +108,24 @@ tetAssignment(V, T, midpoints, fAssign)   # we use midpoint for rotation
 eulers = fill_euler(handles)
 #print(eulers) ## TODO: double check results with matlab
 
+"""
+Apply forward kinematics to compute each rotation and translation after deformation
+newR: [n, 9], where n is the number of joints, is the new rotation matrix after kinematics
+each entry is a vectorized rotation matrix
+new_handles: [n, 3] is the new joints position after kinematics
+"""
+# we need to initialize the output of forward kinematics, so that the ti.kernel updates
+# them instead of returning them
+n_newR = handles.shape[0] - 1
+n_newR = handles.shape[0] - 1
+Tdummy = np.zeros((n_newR + 1, 9))
+newR = np.zeros((n_newR, 9))
+Tdummy[:, [0, 4, 8]] = 1
+newR[:, [0, 4, 8]] = 1
+new_handles = np.zeros_like(handles)
+
+#forward_kinematics(handles, hier, eulers, Tdummy, new_handles, newR)
+#print(newR)
 ## plot mesh
 #k = igl.gaussian_curvature(Vt, Ft)
 
