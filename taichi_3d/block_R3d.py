@@ -2,7 +2,7 @@ import numpy as np
 import scipy.sparse as sps
 import taichi as ti
 from taichi.linalg import SparseMatrixBuilder
-
+from scipy.sparse import lil_matrix, csr_matrix
 
 def block_R3d(R):
     n = R.shape[0]
@@ -64,31 +64,48 @@ def block_R3d(R):
         R[:, 2]
     ))
 
-    tmp = tmp.ravel()
+   
+    tmp = tmp.ravel("F").astype("float")
 
-    i = np.tile(np.arange(1, 9 * n + 1), 6)
-    el_offset = np.tile(np.arange(0, 6 * n, 6), 54)
-    j = np.tile(np.arange(1, 7), 9 * n)
+    i = np.tile(np.arange(0, 9 * n), (6,1)).ravel("F").astype(int)
+    el_offset = np.tile(np.arange(0, 6 * n, 6), (54, 1)).ravel("F").astype(int)
+    j = np.tile(np.arange(0, 6).T, (9 * n,1)).ravel("F").astype(int)
+    #print(i.shape, j.shape, el_offset.shape)
     num_triplets = len(i)
 
-    ti.init(arch=ti.cpu, default_fp=ti.f32, kernel_profiler=True, default_ip=ti.i32)   # Initialize Taichi
+    ## numpy rotation matrix
+    # in python it is more efficient to fill-in a lil_matix
+    blockR_numpy = lil_matrix((9 * n, 6 * n))
+    for k in range(num_triplets):
+        blockR_numpy[i[k], el_offset[k] + j[k]] = tmp[k]
+    # then we transform to csr/coo/csc for linalg convenience!
+    blockR_numpy = csr_matrix(blockR_numpy)
 
-    builder = SparseMatrixBuilder(9 * n, 6 * n, max_num_triplets=num_triplets * 2)
+    ti.init(arch=ti.cpu)   # Initialize Taichi
+    ## taichi rotation matrix
+    """
+    blockR = ti.MatrixNdarray( 9 * n, 6 * n, ti.f64, shape=())
+    blockR.from_numpy(blockR_numpy.todense()[:, :])
 
+    dime = n
+    blockR_taichi = ti.linalg.SparseMatrix(n= 9*dime, m=6*dime, dtype= ti.f64)
+    blockR_taichi.build_from_ndarray(blockR)
+    """
+
+    builder = SparseMatrixBuilder(9 * n, 6 * n, max_num_triplets=num_triplets, dtype=ti.f32)
     @ti.kernel
-    def fill_taichi_matrix(tmp: ti.ext_arr(), i: ti.ext_arr(), j: ti.ext_arr(), el_offset: ti.ext_arr(), builder: ti.sparse_matrix_builder()):
+    def fill_taichi_matrix(tmp: ti.types.ndarray(), i: ti.types.ndarray(), j: ti.types.ndarray(), el_offset: ti.types.ndarray(), builder: ti.sparse_matrix_builder(), num_triplets:ti.i32):
         for k in range(num_triplets):
-            row = ti.cast(i[k] - 1, ti.i32)
-            idx = el_offset[k] + j[k]
-            col = ti.cast(idx - 1, ti.i32)
-            value = tmp[k]
+            row = ti.cast(i[k], ti.i32)
+            col =  ti.cast(el_offset[k], ti.i32) + ti.cast(j[k], ti.i32) 
+            value = ti.cast(tmp[k], ti.f32)
             builder[row, col] += value
+            
 
-    fill_taichi_matrix(tmp, i, j, el_offset, builder)
+    fill_taichi_matrix(tmp, i, j, el_offset, builder, num_triplets)
 
-    blockR_taichi = builder.build()
-
-    return blockR_taichi
+    blockR_taichi = builder.build(dtype=ti.f32, _format = 'CSR')  # wrong values!!!
+    return blockR_taichi , blockR_numpy
 
 """
 # Example usage
@@ -98,9 +115,10 @@ R = np.array([
 ])
 
 try:
-    blockR_taichi = block_R3d(R)
+    blockR_taichi, blockR_numpy = block_R3d(R)
     print("Taichi Sparse Matrix (blockR):")
     print(blockR_taichi)
+    print(blockR_numpy)
 except Exception as e:
     print(f"An error occurred: {e}")
 """
