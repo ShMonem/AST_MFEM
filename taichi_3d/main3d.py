@@ -2,6 +2,14 @@ import taichi as ti
 import igl
 import scipy as sp
 import numpy as np
+import matplotlib.pyplot as plt
+
+import scipy.sparse as sps
+import scipy.sparse.linalg as spsla
+from scipy.sparse.linalg import svds, lsqr, spsolve
+from scipy.sparse import coo_matrix, csc_matrix
+from scipy.linalg import pinv
+
 import meshplot
 from meshplot import plot, subplot, interact
 import scipy.sparse as sps
@@ -16,7 +24,7 @@ import scipy.io as sio
 
 #import bartels python bindings
 import sys
-sys.path.append("../../Bartels/python/build/")
+sys.path.append("../../Bartels/python/build")
 import bartelspy as bt
 ## ----------------------------------------------------------
 from closest_index import *
@@ -27,6 +35,11 @@ from forward_kinematics import *
 from block_R3d import *
 from pinvert import *
 from igl2bart import *
+from def_grad3D import *
+from linear_tet3dmesh_arap_ds import *
+from linear_tet3dmesh_arap_ds2 import *
+from compute_J import *
+#from V_Cycle import *
 ## ----------------------------------------------------------
 ## Load a mesh in OFF format
 _, Ft = igl.read_triangle_mesh(("../data/output_mfem1.msh"))
@@ -49,9 +62,9 @@ F.from_numpy(Ft)
 
 
 ## an array contains the number of handles for each multi-grid level
-b = np.array([[50]])
+b_levels = np.array([[50]]).astype(int)
 # number of multi-grid levels for the Gauss Seidel solver
-l = b.shape[0]
+l = b_levels.shape[0]
 
 ## sampling vertices  on the surface for the first level, and save it in a .mat to safe sometime
 # either used the function smpling3d(T, V, b[0])
@@ -63,14 +76,13 @@ PIt = sio.loadmat("../data/PI.mat") ## to access the entries from the dict use: 
 # initialize the required taichi fields to pass, and store in 'weights', 
 # also a dummy vectorfield used by the function "closest_index" for intermediate commputations
 weight = ti.field(ti.i32, shape=Vt.shape[0])
+
 D = ti.Vector.field(Pt['P'].shape[0], dtype=ti.f32, shape=Vt.shape[0])
 P = ti.Vector.field(3, dtype=ti.f32, shape=Pt['P'].shape[0])
 P.from_numpy(Pt['P'])
 
 # compute the weights per vertex and store them in "weight"
-closest_index(V, P, weight, D)
-#print(weight) # TODO: not giving same results as matlab so far
-
+closest_index(V, P, weight, D) # checked
 
 
 """
@@ -83,7 +95,7 @@ Build the reduced subspace basis mat U, where U is the prolongation matrix intro
 # Ui has size [V, T], where T is (12 * number of handles) -> the total number of degrees of all affine transformation
 # NN is a matrix which is used to do the regularization as in the paper.
 """
-#U, NN = build_U(weight.to_numpy(), b, l, P, Vt)  # TODO: due to the issue with weights, this function is giving errors
+U, NN = build_U(weight.to_numpy(), b_levels, l, P, Vt)  # TODO: due to the issue with weights, this function is giving errors
 
 # or upload previously stored samples
 handlest = sio.loadmat('../data/handles.mat') 
@@ -154,7 +166,11 @@ for i in range(rows_T):
     R[i, :] = newR[fAssign[i], :]
 
 # R_mat: [9T, 6T]
-R_mat = block_R3d(R)
+_, R_mat_py = block_R3d(R)
+
+#print(type(R_mat_py))
+#plt.spy(R_mat_py, precision=0.5, markersize=5)
+#plt.show()
 
 # vAssign: [V, 1] contains the closest handles' index for each vertex
 # computation is same as fAssign
@@ -203,10 +219,69 @@ new_new_handles[new_handles.shape[0]:, :] = midpoints
 # Assuming you have already defined the igl2bart() function
 pinned_b = igl2bart(new_new_handles)
 
+# Compute Deformation Gradient B: [9T, 3V]
+B = def_grad3D(Vt, Tt)
 
 
-## plot mesh
-#k = igl.gaussian_curvature(Vt, Ft)
+mu = 100  # material properties
+k_bc = 1000 # stiffness 
+
+s = np.zeros((6*Tt.shape[0], 1))
+
+# compute gradient and hessian for As-Rigid-As-Possible Model
+# grad: [3T, 3T]
+# hess: [3T, 3T]
+grad = linear_tet3dmesh_arap_ds(Vt,Tt, s, mu)
+hess = linear_tet3dmesh_arap_ds2(Vt,Tt, s, mu)
+
+nq = q.shape[0]
+ns = s.shape[0]
+nlambda = 9*Tt.shape[0]
+
+
+
+
+
+## System matrices
+J = compute_J(R_mat_py, B)
+#plt.spy(J, precision=0.5, markersize=5)
+#plt.show()
+
+A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
+b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
+
+## precompute system reduced-matrices at each MG level
+# regularization is done only for the first level
+# t is the degree of freedom of affine transformation at each dim
+# 2D or 3D
+dims = Vt.shape[1]
+if dims == 2:
+    t = 6
+elif dims == 3:
+    t = 12
+
+U1 = np.zeros((nq, t*b_levels[0,0])) # TODO: just for testing what followos, but U and NN are computed through "build_U"
+NN = np.zeros((t*b_levels[0,0],t*b_levels[0,0]))
+U = []
+U.append(U1)
+print(len(U))
+UTAU = [] # creat a list
+for i in range(len(U)):
+    if i == 0:
+        UTAU.append(U[i].T @ A @ U[i] + NN)  # UTAU[i]
+    else:
+        UTAU.append(U[i].T @ UTAU[i-1] @ U[i]) # UTAU[i]
+
+## the Multi-grid solver
+normVal = float('inf')
+itr = 0
+tol = 1e-5
+sol = np.zeros(b.shape)
+## TODO: check time 
+while normVal > tol:
+    sol_old = sol
+    #sol = V_Cycle(A, b, UTAU, U, 3, sol_old, 1)
+    itr = itr + 1
 
 
 """
