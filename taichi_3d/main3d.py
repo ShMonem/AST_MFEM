@@ -166,7 +166,7 @@ for i in range(rows_T):
     R[i, :] = newR[fAssign[i], :]
 
 # R_mat: [9T, 6T]
-_, R_mat_py = block_R3d(R)
+R_mat_ti, R_mat_py = block_R3d(R)
 
 #print(type(R_mat_py))
 #plt.spy(R_mat_py, precision=0.5, markersize=5)
@@ -248,6 +248,7 @@ b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
 #print(isspmatrix(A)) ##True
 #plt.spy(A, precision=0.5, markersize=0.1)
 #plt.show()
+
 ## precompute system reduced-matrices at each MG level
 # regularization is done only for the first level
 UTAU = [] # creat a list
