@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
 from scipy.sparse.linalg import svds, lsqr, spsolve
-from scipy.sparse import coo_matrix, csc_matrix
+from scipy.sparse import coo_matrix, csc_matrix, isspmatrix
 from scipy.linalg import pinv
 
 import meshplot
@@ -245,7 +245,9 @@ J = compute_J(R_mat_py, B)
 
 A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
 b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
-
+#print(isspmatrix(A)) ##True
+#plt.spy(A, precision=0.5, markersize=0.1)
+#plt.show()
 ## precompute system reduced-matrices at each MG level
 # regularization is done only for the first level
 UTAU = [] # creat a list
@@ -260,6 +262,8 @@ normVal = float('inf')
 itr = 0
 tol = 1e-5
 sol = np.zeros(b.shape)
+
+
 ## TODO: check time 
 while normVal > tol:
     sol_old = sol
