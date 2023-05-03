@@ -2,7 +2,7 @@ import numpy as np
 import taichi as ti
 from scipy.sparse import kron, eye, find, csr_matrix
 from scipy.linalg import eigh
-
+import matplotlib.pyplot as plt
 ## ----------------------------------------------------------
 from closest_index import *
 
@@ -27,7 +27,7 @@ def build_U(weight, b, l, P, V):
     I = eye(dims)
 
     # this is a Kronecker product
-    tmp = kron(homoV, I).T
+    tmp = kron(homoV, I).T.toarray()
     # t is the degree of freedom of affine transformation at each dim
     if dims == 2:
         t = 6
@@ -35,24 +35,27 @@ def build_U(weight, b, l, P, V):
         t = 12
 
     # building sparse matrix of U by computing index of each entry first
-    print("Unique weights:", np.unique(weight))
-    i = np.tile(np.arange(1, dims * n + 1), (t, 1))
-    j = (weight * t - (t - 1))
-    j = np.tile(j, (dims * t, 1))
-    print("j min:", np.min(j))
-    print("j max:", np.max(j))
-    offset = np.tile(np.arange(0, t), (dims * n, 1)).reshape(-1, 1)
-    data = tmp.toarray().flatten('F')
-    rows = (np.ravel(i) - 1)
-    cols = (np.ravel(j) - 1) + np.ravel(offset)
+    i = np.tile(np.arange(dims * n), (t, 1))
+    j = (weight * t)   # in matlab: j = (weight * t- (t-1))
+    j = np.tile(j, (dims * t, 1)).ravel("F")
+    
+    offset = np.tile(np.arange(t), (dims * n, 1)).ravel("F")
+
+    data = tmp.ravel("F").astype("float")
+    rows = i.ravel("F")
+    cols = (j + offset).ravel("F")
     #print("cols min:", np.min(cols))
     U1 = csr_matrix((data, (rows, cols)), shape=(dims * n, t * b[0, 0]))
+    U.append(U1)
 
-    
+    #plt.spy(U1, precision=0.5, markersize=5)
+    #plt.show()
 
     # Regularize
     NN = csr_matrix((t * b[0, 0], t * b[0, 0]))
-    for i in range(1, b[0, 0] + 1):
+    for i in range(b[0, 0]):
+        # find the indecies in weight that equal i
+        # that is the verts indecies have "i" as the closesd handels
         k = np.argwhere(weight == i).ravel()
         Ub = homoV[k, :]
         Z = Ub.T @ Ub
@@ -65,21 +68,20 @@ def build_U(weight, b, l, P, V):
                 normal = Vz[:, j].reshape(-1, 1)
                 reg = normal @ normal.T
                 regMat = kron(reg, I)
-                NN[t * i - t:t * i, t * i - t:t * i] = regMat
+                NN[i*t:(i+1)*t,i*t:(i+1)*t] = regMat
 
-
-    U.append(U1)
+    
 
     # if we have more than 1 level in MG
     if l != 1:
         P_j = P
-        for j in range(2, l + 1):
-            P_j = P_j[:b[j - 1, 0], :]
-            w = closest_index(P[:b[j - 2, 0], :], P_j)
-            U_j = csr_matrix((t * b[j - 2], t * b[j - 1]))
-            for k in range(1, b[j - 2] + 1):
+        for j in range(1, l):
+            P_j = P_j[:b[j, 0], :]
+            w = closest_index(P[:b[j - 1, 0], :], P_j)
+            U_j = csr_matrix((t * b[j - 1], t * b[j]))
+            for k in range(b[j - 1, 0]):
                 tmp = csr_matrix(np.eye(t))
-                U_j[t * k - 5:t * k, (w[k - 1, 0] - 1) * t:w[k - 1, 0]  ]
+                U_j[t * k - 5:t * k, (w[k - 1, 0] - 1) * t:w[k - 1, 0]  ] = tmp  ## TODO: fix this is wrong
     return U, NN            
 """
 # Numerical test

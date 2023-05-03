@@ -238,10 +238,6 @@ nq = q.shape[0]
 ns = s.shape[0]
 nlambda = 9*Tt.shape[0]
 
-
-
-
-
 ## System matrices
 J = compute_J(R_mat_py, B)
 #plt.spy(J, precision=0.5, markersize=5)
@@ -252,19 +248,6 @@ b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
 
 ## precompute system reduced-matrices at each MG level
 # regularization is done only for the first level
-# t is the degree of freedom of affine transformation at each dim
-# 2D or 3D
-dims = Vt.shape[1]
-if dims == 2:
-    t = 6
-elif dims == 3:
-    t = 12
-
-U1 = np.zeros((nq, t*b_levels[0,0])) # TODO: just for testing what followos, but U and NN are computed through "build_U"
-NN = np.zeros((t*b_levels[0,0],t*b_levels[0,0]))
-U = []
-U.append(U1)
-print(len(U))
 UTAU = [] # creat a list
 for i in range(len(U)):
     if i == 0:
@@ -280,7 +263,7 @@ sol = np.zeros(b.shape)
 ## TODO: check time 
 while normVal > tol:
     sol_old = sol
-    #sol = V_Cycle(A, b, UTAU, U, 3, sol_old, 1)
+    sol = V_Cycle(A, b, UTAU, U, 3, sol_old, 1)
     itr = itr + 1
 
 

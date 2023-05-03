@@ -66,7 +66,6 @@ def block_R3d(R):
 
    
     tmp = tmp.ravel("F").astype("float")
-
     i = np.tile(np.arange(0, 9 * n), (6,1)).ravel("F").astype(int)
     el_offset = np.tile(np.arange(0, 6 * n, 6), (54, 1)).ravel("F").astype(int)
     j = np.tile(np.arange(0, 6).T, (9 * n,1)).ravel("F").astype(int)
