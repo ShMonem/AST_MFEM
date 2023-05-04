@@ -5,21 +5,6 @@ from GS import *
 
 ti.init(arch=ti.cpu)
 
-# Set dimensions for matrices and vectors
-n = 64
-l = 3
-
-# Create Taichi fields
-A = ti.field(ti.f32, (n, n), needs_grad=False)
-b = ti.field(ti.f32, (n,), needs_grad=False)
-UTAU = [ti.field(ti.f32, (n, n), needs_grad=False) for _ in range(l)]
-U = [ti.field(ti.f32, (n, n), needs_grad=False) for _ in range(l)]
-init = ti.Vector.field(n, dtype=ti.f32, shape=(), needs_grad=False)
-sol = ti.Vector.field(n, dtype=ti.f32, shape=(), needs_grad=False)
-
-
-
-
 def V_Cycle(A, b, n, sol, level):
     sol = gauss_seidel_solver(A, b, n, sol)
 
@@ -48,6 +33,19 @@ def v_cycle_kernel(A: ti.template(), b: ti.template(), n: int, init: ti.template
 
 
 if __name__ == "__main__":
+
+    # Set dimensions for matrices and vectors
+    n = 64
+    l = 3
+
+    # Create Taichi fields
+    A = ti.field(ti.f32, (n, n), needs_grad=False)
+    b = ti.field(ti.f32, (n,), needs_grad=False)
+    UTAU = [ti.field(ti.f32, (n, n), needs_grad=False) for _ in range(l)]
+    U = [ti.field(ti.f32, (n, n), needs_grad=False) for _ in range(l)]
+    init = ti.Vector.field(n, dtype=ti.f32, shape=(), needs_grad=False)
+    sol = ti.Vector.field(n, dtype=ti.f32, shape=(), needs_grad=False)
+
     # Fill A, b, UTAU, and U with example data
     A_np = np.random.rand(n, n).astype(np.float32)
     b_np = np.random.rand(n).astype(np.float32)
