@@ -2,6 +2,7 @@ import taichi as ti
 import igl
 import scipy as sp
 import numpy as np
+import numpy.linalg as npla
 import matplotlib.pyplot as plt
 
 import scipy.sparse as sps
@@ -39,7 +40,9 @@ from def_grad3D import *
 from linear_tet3dmesh_arap_ds import *
 from linear_tet3dmesh_arap_ds2 import *
 from compute_J import *
-#from V_Cycle import *
+from blockMatSolve import*
+from GS import *
+from V_Cycle import *
 ## ----------------------------------------------------------
 ## Load a mesh in OFF format
 _, Ft = igl.read_triangle_mesh(("../data/output_mfem1.msh"))
@@ -169,7 +172,7 @@ for i in range(rows_T):
 R_mat_ti, R_mat_py = block_R3d(R)
 
 #print(type(R_mat_py))
-#plt.spy(R_mat_py, precision=0.5, markersize=5)
+#plt.spy(R_mat_py, precision=0.5, markersize=0.1)
 #plt.show()
 
 # vAssign: [V, 1] contains the closest handles' index for each vertex
@@ -239,15 +242,18 @@ ns = s.shape[0]
 nlambda = 9*Tt.shape[0]
 
 ## System matrices
-J = compute_J(R_mat_py, B)
+#J = compute_J(R_mat_py, B)
+J = lil_matrix((R_mat_py.shape[1], B.shape[1]))
 #plt.spy(J, precision=0.5, markersize=5)
 #plt.show()
 
 A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
 b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
+
+A = A.toarray()  ## TODO: this should be fixed A is sparse, try a sparse A_field t00
 #print(isspmatrix(A)) ##True
-#plt.spy(A, precision=0.5, markersize=0.1)
-#plt.show()
+plt.spy(A, precision=0.5, markersize=0.1)
+plt.show()
 
 ## precompute system reduced-matrices at each MG level
 # regularization is done only for the first level
@@ -264,14 +270,31 @@ itr = 0
 tol = 1e-5
 sol = np.zeros(b.shape)
 
+A_field = ti.field(dtype=ti.f32, shape=A.shape)
+fill_U(A_field, A)
 
+b_field = ti.field(dtype=ti.f32, shape=(b.shape[0],))
+fill_field(b_field, np.squeeze(b))
+
+sol_init = np.zeros(b.shape, dtype=np.float32)
+x = ti.field(dtype=ti.f32, shape=(sol_init.shape[0],))
+x_old = ti.field(dtype=ti.f32, shape=(x.shape[0],))
+result = ti.field(dtype=ti.f32, shape=x.shape[0])
+fill_field(x, np.squeeze(sol_init))
+
+itr_num = 24
 ## TODO: check time 
+
 while normVal > tol:
     sol_old = sol
-    sol = V_Cycle(A, b, UTAU, U, 3, sol_old, 1)
+
+    sol = v_cycle(A_field, b_field, UTAU, U,  l, A, x, itr_num,  x_old, result)
+    normVal = npla.norm(b - A @ sol)
+
     itr = itr + 1
+    print(normVal)
 
-
+print(sol.shape)
 """
 # comment for now so that no more .html generated
 p = plot(Vt, Ft, k)
