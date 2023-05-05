@@ -1,7 +1,7 @@
 import taichi as ti
 import numpy as np
 
-ti.init(arch=ti.cpu)
+#ti.init(arch=ti.cpu)
 
 @ti.kernel
 def pinvert(V: ti.template(), h: ti.template(), weight: ti.template(), D: ti.template()):

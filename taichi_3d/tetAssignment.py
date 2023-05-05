@@ -2,7 +2,7 @@ import taichi as ti
 import numpy as np
 
 # initialized for CPU computation.
-ti.init(arch=ti.cpu)
+#ti.init(arch=ti.cpu)
 
 @ti.func
 def dist(a, b):

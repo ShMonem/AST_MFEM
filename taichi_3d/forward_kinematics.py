@@ -1,7 +1,7 @@
 import taichi as ti
 import numpy as np
 
-ti.init(arch=ti.cpu)
+#ti.init(arch=ti.cpu)
 
 @ti.func
 def compute_rotation(alpha, beta, gamma):

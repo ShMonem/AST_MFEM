@@ -1,12 +1,52 @@
 import numpy as np
 import taichi as ti
-from scipy.sparse import kron, eye, find, csr_matrix
+from scipy.sparse import kron, eye, find, csr_matrix, isspmatrix
 from scipy.linalg import eigh
 import matplotlib.pyplot as plt
 ## ----------------------------------------------------------
 from closest_index import *
-
+from GS import *
 ## ----------------------------------------------------------
+#ti.init()
+
+def U_toTichi(Ut, A, Ub, UTAU,projA_solvers, NN):
+    ## Ut: list of numpy ndarrays
+
+    for l in range(len(Ut)):
+
+        print(type(Ut[l]))
+        #print(isspmatrix(Ut[l]))
+        rows, cols = Ut[l].nonzero()
+        #U_l = ti.linalg.SparseMatrix(n=Ut[l].shape[0], m=Ut[l].shape[1], dtype=ti.f32) 
+        #triplets_u_l = ti.Vector.ndarray(n=3, dtype=ti.f32, shape= rows.shape[0])
+        #fill_tripletsSparse(triplets_u_l, rows, cols, Ut[l].data)
+        #U_l.build_from_ndarray(triplets_u_l)
+        U_l = ti.field(dtype=ti.f32, shape=Ut[l].shape)
+        fill_U_Sparse(U_l, rows, cols, Ut[l].data)
+        Ub.append(U_l)  # basis list
+        #Ub_shapes.append(Ut[l].shape)
+        print("U_l filled")
+
+        if l == 0:
+            UTAUt_l = csr_matrix(Ut[l].T @ A @ Ut[l] + NN)   # UTAU[i]
+        else:
+            UTAUt_l = csr_matrix(Ut[l].T @ UTAU[l-1] @ Ut[l]) # UTAU[i]
+
+        UTAU_l = ti.linalg.SparseMatrix(n=UTAUt_l.shape[0], m=UTAUt_l.shape[1], dtype=ti.f32)
+        triplets_utau_l = ti.Vector.ndarray(n=3, dtype=ti.f32, shape= UTAUt_l.nnz)
+        
+        rows_, cols_ = UTAUt_l.nonzero()
+        fill_tripletsSparse(triplets_utau_l, rows_, cols_, UTAUt_l.data,)
+        UTAU_l.build_from_ndarray(triplets_utau_l) 
+        
+        UTAU.append(UTAU_l) # projected basis list
+        print("UTAT_l filled")
+        #UTAU_shapes.append(UTAUt_l.shape)
+
+        solver_l = ti.linalg.SparseSolver()
+        solver_l.compute(UTAU_l)
+        projA_solvers.append(solver_l)
+
 def build_U(weight, b, l, P, V):
     # 2D or 3D
     dims = V.shape[1]
@@ -51,8 +91,8 @@ def build_U(weight, b, l, P, V):
     #plt.spy(U1, precision=0.5, markersize=5)
     #plt.show()
 
-    # Regularize
-    NN = csr_matrix((t * b[0, 0], t * b[0, 0]))
+    # Regularize  ## TODO: ti.kernel
+    NN = csr_matrix((t * b[0, 0], t * b[0, 0]))  
     for i in range(b[0, 0]):
         # find the indecies in weight that equal i
         # that is the verts indecies have "i" as the closesd handels
@@ -72,7 +112,7 @@ def build_U(weight, b, l, P, V):
 
     
 
-    # if we have more than 1 level in MG
+    # if we have more than 1 level in MG ## TODO: ti.kernel
     if l != 1:
         P_j = P
         for j in range(1, l):

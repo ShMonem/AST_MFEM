@@ -80,7 +80,7 @@ def block_R3d(R):
     # then we transform to csr/coo/csc for linalg convenience!
     blockR_numpy = csr_matrix(blockR_numpy)
 
-    ti.init(arch=ti.cpu)   # Initialize Taichi
+    #ti.init(arch=ti.cpu)   # Initialize Taichi
     ## taichi rotation matrix
     """
     blockR = ti.MatrixNdarray( 9 * n, 6 * n, ti.f64, shape=())
