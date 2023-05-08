@@ -7,13 +7,14 @@ class Skeleton:
 
     def __init__(self):
         self.skeleton = []
+        self.skel_tms = None
 
     def add(self, bone):
         self.skeleton.append(bone)
 
-    def load_skeleton(self, file_transform, file_hierarchy, file_namelist):
+    def load_skeleton(self, file_transform, file_hierarchy, file_namelist, transpose=False):
         # read rest shape transformation from file: #bones by 4 by 4
-        init_t = np.load(file_transform)
+        self.skel_tms = np.load(file_transform)
         with open(file_hierarchy, 'r') as f:
             skeleton_hierarchy = json.load(f)
         namelist = np.load(file_namelist)
@@ -21,17 +22,17 @@ class Skeleton:
         skel = list()
         # load all bones, store lengths to each child, we will draw the cones to each child
         for idx, bone_name in enumerate(par_child_tree):
-            bone_tm = init_t[idx].T
+            bone_tm = self.skel_tms[idx].T if transpose else self.skel_tms[idx]
             lens = list()
             children_idxs = list()
             parent = par_child_tree[bone_name]['parent']
             for child in par_child_tree[bone_name]['children']:
                 child_idx = np.where(namelist == child)[0][0]
                 children_idxs.append(child_idx)
-                length = np.linalg.norm(init_t[child_idx, 3, 0:3] - init_t[idx, 3, 0:3])
+                length = np.linalg.norm(self.skel_tms[child_idx, 3, 0:3] - self.skel_tms[idx, 3, 0:3])
                 lens.append(length)
             parent_idx = -1 if parent == 'root' else np.where(namelist == parent)[0][0]
-            b = Bone(lens, bone_tm, idx, parent_idx, children_idxs)
+            b = Bone(lens, bone_tm, self.skel_tms, idx, parent_idx, children_idxs)
             skel.append(b)
         self.skeleton = skel
 
@@ -50,6 +51,8 @@ class Skeleton:
                 out_dict[par]['children'].append(elem)
         return out_dict
 
-    def set_bones(self, bones_t, transpose=False):
+    def set_bones(self, bones_tms, transpose=False):
+        self.skel_tms = bones_tms
         for i in range(len(self.skeleton)):
-            self.skeleton[i].tm = bones_t[i].T if transpose else bones_t[i]
+            self.skeleton[i].tm = self.skel_tms[i].T if transpose else self.skel_tms[i]
+            self.skeleton[i].all_tms = self.skel_tms

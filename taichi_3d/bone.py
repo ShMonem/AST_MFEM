@@ -24,39 +24,42 @@ def COMPUTE_ARROW():
 
 
 class Bone:
-    def __init__(self, lengths, bone_tm, idx, parent_idx, children_idxs, radius=1, last_idx=0):
+    def __init__(self, lengths, bone_tm, all_tms, idx, parent_idx, children_idxs, radius=1):
         self.idx = idx
         self.lens = lengths
         self.tm = bone_tm
+        self.all_tms = all_tms
         self.parent = parent_idx
         self.children = children_idxs
         self.radius = radius
         self.Euler = np.array([[0.0], [0.0], [0.0]])
-        self.last_idx = last_idx + 1 if last_idx > 0 else 0
         self.verts, self.edges = self.init_geom()
 
     def init_geom(self):
         # We init the geom once, then store the base shape. The radius and the length are taken into account.
         v, e = COMPUTE_CIRCLE()
         v *= self.radius
-        e = e + self.last_idx
 
         # add arrows only for single child parents
         if len(self.children) > 0:
-            len_tip = self.lens[0]
-            v_arrow, e_arrow = COMPUTE_ARROW()
-            e_arrow = e_arrow + 30 + self.last_idx
-            v_arrow = np.c_[v_arrow, np.ones(v_arrow.shape[0])]
-            v_arrow[:, [0, 2]] = v_arrow[:, [0, 2]] * self.radius
-            v_arrow[-1, 1] = len_tip
-            v = np.concatenate((v[:, 0:3], v_arrow[:, 0:3]), axis=0)
-            e = np.concatenate((e, e_arrow), axis=0)
+            for child_idx in self.children:
+                v_arrow, e_arrow = COMPUTE_ARROW()
+                e_arrow = e_arrow + v.shape[0]
+                v_arrow[:, [0, 2]] = v_arrow[:, [0, 2]] * self.radius
+                v = np.concatenate((v, v_arrow), axis=0)
+                e = np.concatenate((e, e_arrow), axis=0)
         return v, e
 
     def get_verts(self):
         # homogenized neutral shape
         v_base = np.c_[self.verts, np.ones(self.verts.shape[0])]
         v = (self.tm @ v_base.T).T
+        if len(self.children) > 0:
+            for i, child_idx in enumerate(self.children):
+                tip_vert = self.all_tms[child_idx].T[0:3, -1]
+                # Figure out the id of each tip vertex
+                vert_id = 29 + i * 5 + 5
+                v[vert_id][0:3] = tip_vert
         return v[:, 0:3]
 
     def get_edges(self):
