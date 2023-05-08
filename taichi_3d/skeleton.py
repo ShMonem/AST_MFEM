@@ -52,7 +52,7 @@ class Skeleton:
         return out_dict
 
     def set_bones(self, bones_tms, transpose=False):
-        self.skel_tms = bones_tms
+        # we use [:] to make sure that all the pointers in the bones to all_tms have the update
+        self.skel_tms[:] = bones_tms
         for i in range(len(self.skeleton)):
             self.skeleton[i].tm = self.skel_tms[i].T if transpose else self.skel_tms[i]
-            self.skeleton[i].all_tms = self.skel_tms
