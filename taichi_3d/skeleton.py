@@ -7,6 +7,7 @@ class Skeleton:
 
     def __init__(self):
         self.skeleton = []
+        # skel tms are referenced by each bone, not copied. Be careful how you mess with it!
         self.skel_tms = None
 
     def add(self, bone):
@@ -52,7 +53,5 @@ class Skeleton:
         return out_dict
 
     def set_bones(self, bones_tms, transpose=False):
-        # we use [:] to make sure that all the pointers in the bones to all_tms have the update
+        # we use [:] to update the base tms which are referenced by bones.
         self.skel_tms[:] = bones_tms
-        for i in range(len(self.skeleton)):
-            self.skeleton[i].tm = self.skel_tms[i].T if transpose else self.skel_tms[i]
