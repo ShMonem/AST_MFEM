@@ -88,7 +88,7 @@ P.from_numpy(Pt['P'])
 start = time()
 closest_index(V, P, weight, D) # checked
 end = time()
-print('weights computed in', end - start,'seconds!')
+print('| weights                                            |', end - start,'s|')
 """
 Build the reduced subspace basis mat U, where U is the prolongation matrix introduce in the 
 "Galerkin Multi-grid Method" paper by Xian et. al. (same notation used)
@@ -102,7 +102,7 @@ Build the reduced subspace basis mat U, where U is the prolongation matrix intro
 start = time()
 Ut, NN = build_U(weight.to_numpy(), b_levels, l, P, Vt)  # TODO: due to the issue with weights, this function is giving errors
 end = time()
-print('List of numpy reduction matrices build in', end - start,'seconds!')
+print('| build numpy reduction matrices                     |', end - start,'s|')
 # or upload previously stored samples
 handlest = sio.loadmat('../data/handles.mat') 
 hiert = sio.loadmat("../data/hierarchy.mat") 
@@ -143,7 +143,7 @@ fAssign = ti.field(dtype=ti.i32, shape=Tt.shape[0])
 tetAssignment(V, T, midpoints, fAssign)   # we use midpoint for rotation
 # print(fAssign) ## TODO: double check results with matlab
 end = time()
-print('tet midpoints assigned in ', end - start,'seconds!')
+print('| assign tet midpoints                               |', end - start,'s|')
 
 eulers = fill_euler(handles)
 #print(eulers) ## TODO: double check results with matlab
@@ -166,7 +166,7 @@ new_handles = np.zeros_like(handles)
 start = time()
 forward_kinematics(handles, hier, eulers, Tdummy, new_handles, newR) # TODO: we are replacing this step
 end = time()
-print('Forward kinematics computed in', end - start,'seconds!') 
+print('| forward kinematics                                 |', end - start,'s|') 
 #print(newR)
 
 # assigning rotations to each tet according to fAssign info
@@ -181,7 +181,7 @@ for i in range(rows_T):
 start = time()
 R_mat_ti, R_mat_py = block_R3d(R)
 end = time()
-print('rotations block matrix built in', end - start,'seconds!')
+print('| build rotations block matrix                       | ', end - start,'s|')
 
 #print(type(R_mat_py))
 #plt.spy(R_mat_py, precision=0.5, markersize=0.1)
@@ -209,7 +209,7 @@ pinvert(V, H, vAssign, Dt)
 I = np.eye(3)
 
 # Here we re-order vertex positions and stack them in one long vector
-# q = [x0, y0, z0, x1, y1, z1,..., xn, yn, zn] (Bartel's way of doing things! :-D)
+# q = [x0, y0, z0, x1, y1, z1,..., xn, yn, zn] (Bartel's way of doing things :-D)
 q =igl2bart(Vt)
 
 
@@ -236,7 +236,7 @@ new_new_handles[new_handles.shape[0]:, :] = midpoints
 # Assuming you have already defined the igl2bart() function
 pinned_b = igl2bart(new_new_handles)
 end = time()
-print('verts pinned and midpoints recomputed in', end - start,'seconds!')
+print('| pin verts, recompute midpoints                     |', end - start,'s|')
 
 start = time()
 # Compute Deformation Gradient B: [9T, 3V]
@@ -252,7 +252,7 @@ s = np.zeros((6*Tt.shape[0], 1))
 grad = linear_tet3dmesh_arap_ds(Vt,Tt, s, mu)
 hess = linear_tet3dmesh_arap_ds2(Vt,Tt, s, mu)
 end = time()
-print('deformation gradient, hess, grad computed in', end - start,'seconds!')
+print('| compute deformation gradient, hess, grad           |', end - start,'s|')
 
 nq = q.shape[0]
 ns = s.shape[0]
@@ -262,7 +262,7 @@ start = time()
 ## System matrices
 J = compute_J(R_mat_py, B)
 end = time()
-print('J = R_mat \ B commputed in', (end - start)/60.,'minutes!')
+print('| compute J = R_mat \ B                              |', (end - start)/60.,'minutes |')
 
 #J = lil_matrix((R_mat_py.shape[1], B.shape[1]))
 
@@ -272,7 +272,7 @@ start = time()
 A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
 b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
 end = time()
-print('computing sys matrices A, b in', end - start,'seconds!')
+print('| computing sys matrices A, b                        |', end - start,'s|')
 
 
 #A = A  ## TODO: this should be fixed A is sparse, try a sparse A_field t00
@@ -287,10 +287,18 @@ UTAU = [] # creat a list
 Ub = []
 projA_solvers = []## list of UTAU solvers
 
+"""
 start = time()
 U_toTichi(Ut, A, Ub, UTAU, projA_solvers, NN)
 end = time()
-print('lists of taichi basis matrices and projected basis built in', end - start,'seconds!')
+print('lists of taichi basis matrices and projected basis built in', end - start,'s')
+
+"""
+start = time()
+Ub, UTAU = buildPy_reduction_utilities(Ut, A, UTAU, NN)
+end = time()
+print('| numpy projected basis                              |', end - start,'s|')
+
 ## the Multi-grid solver
 normVal = float('inf')
 itr = 0
@@ -311,22 +319,24 @@ x_old = ti.field(dtype=ti.f32, shape=(x.shape[0],))
 result = ti.field(dtype=ti.f32, shape=x.shape[0])
 fill_field(x, np.squeeze(sol_init))
 end = time()
-print('computing sys matrices A, b in', end - start,'seconds!')
+print('| some extra initializations                         |', end - start,'s|')
 
 itr_num = 2
 l = len(Ub) -1
 ## TODO: check time 
 start = time()
-U, L_solver = A_L_sum_U(A.toarray())
+#U, L_solver = A_L_sum_U_ti(A.toarray())
+U_field, U, L = A_L_sum_U_py(A.toarray())
 end = time()
-print('factorizing A= L + U in', end - start,'seconds!')
+print('| factorizing A= L + U                               |', end - start,'s|')
 
 while normVal > tol:
     sol_old = sol
     start = time()
-    sol = v_cycle(A_field, b_field, UTAU, projA_solvers, Ub,  l, U, L_solver, itr_num,  x_old)
+    #sol = v_cycle_ti(A_field, b_field, UTAU, projA_solvers, Ub,  l, U, L_solver, itr_num,  x_old)
+    sol = v_cycle_py(A_field, b_field, UTAU, Ub,  l, U_field, U, L, itr_num,  x_old)
     end = time()
-    print('V_cycle, itr', itr, 'in ', end - start,'seconds!')
+    print('V_cycle, itr', itr, 'in ', end - start,'s')
     normVal = npla.norm(b - A.dot(sol.to_numpy()))
     itr = itr + 1
     print("error: ",normVal)

@@ -16,7 +16,7 @@ triplets = ti.Vector.ndarray(n=3, dtype=ti.f32, shape=At.nnz)
 def fill_tripletsSparse(triplets: ti.types.ndarray(), At_i: ti.ext_arr(), At_j: ti.ext_arr(), At_data: ti.ext_arr()):
      for i in range(At_i.shape[0]):
         triplets[i] = ti.Vector([At_i[i], At_j[i], At_data[i]], dt=ti.f32)
-
+       # print(triplets[i])
 
 rows, cols = At.nonzero()
 fill_tripletsSparse(triplets, rows, cols, At.data,)

@@ -1,6 +1,8 @@
 import taichi as ti
 import numpy as np
 from scipy.sparse import kron, eye, find, csr_matrix
+from scipy.linalg import solve
+from scipy.sparse.linalg import spsolve
 # gauss_seidel_solver is a python function, and is defined in GS
 from GS import *
 from build_U import *
@@ -38,11 +40,12 @@ def restrict(Ub_l: ti.template(), res: ti.template(), red_res: ti.template()):
 
 def atom_add(x: ti.template(), y:ti.template()):
     ti.atomic_add(x, y)
-def v_cycle(A_ti: ti.template(), b: ti.template(), UTAU, projA_solvers: ti.template(), Ub, l, \
+
+def v_cycle_ti(A_ti: ti.template(), b: ti.template(), UTAU, projA_solvers: ti.template(), Ub, l, \
             U:  ti.template(), L_solver: ti.template,\
                  itr: ti.i32, x_old: ti.template()):
     
-    sol = gauss_seidel(U, L_solver, b, x_old, itr, x_old)  ## at beginning x = x_old, x_old = x_old
+    sol = gauss_seidel_ti(U, L_solver, b, x_old, itr, x_old)  ## at beginning x = x_old, x_old = x_old
     
     r = ti.field(dtype=ti.f32, shape=(A_ti.shape[0],))
     compute_residual(A_ti, b, sol, r)
@@ -55,16 +58,47 @@ def v_cycle(A_ti: ti.template(), b: ti.template(), UTAU, projA_solvers: ti.templ
         e = projA_solvers[l].solve(red_res)
     else:
         e = v_cycle(A_ti, b, UTAU, projA_solvers, Ub, l+1, \
-              U, L_solver, itr, x_old, result)
+              U, L_solver, itr, x_old)
 
     update_sol_with_e(sol, Ub[l], e)
    
     if l == 0:
-        sol = gauss_seidel(U, L_solver, b, sol, itr, x_old)
+        sol = gauss_seidel_ti(U, L_solver, b, sol, itr, x_old)
     else:
-        sol = gauss_seidel(UTAU[l], b, sol, itr, x_old)
+        sol = gauss_seidel_ti(UTAU[l], b, sol, itr, x_old)
     return sol
 
+def v_cycle_py(A_ti: ti.template(), b: ti.template(), UTAU: ti.template(), Ub: ti.template(), l, \
+                U_field:  ti.template(), U:  ti.template(), L:  ti.template(), itr: ti.i32, x_old: ti.template()):
+    
+    sol = gauss_seidel_py(U_field, U, L, b, itr, x_old, x_old)  ## at beginning x = x_old, x_old = x_old
+
+    r = ti.field(dtype=ti.f32, shape=(A_ti.shape[0],))
+    compute_residual(A_ti, b, sol, r)
+    
+    #print(sol.to_numpy())
+    #print(r.to_numpy())
+    #red_res= ti.field(dtype=ti.f32, shape=(Ub[l].shape[1],))
+    #restrict(Ub[l], r, red_res)
+    red_res = Ub[l].T.dot( r.to_numpy())
+    #print(red_res)
+    
+    e = np.zeros(red_res.shape)
+    if l == (len(Ub) -1 ): # reached the last reduction matrix in the list
+        e = spsolve(UTAU[l], red_res)
+    else:
+        e = v_cycle_py(A_ti, b, UTAU, Ub, l+1, \
+                U_field, U, L, itr, e)
+
+    #update_sol_with_e(sol, Ub[l], e)
+    #print(type(Ub[l]), type(e), type(sol))
+    sol.from_numpy(sol.to_numpy() + Ub[l].dot(e))
+    if l == 0:
+        sol = gauss_seidel_py(U_field, U, L, b, itr, sol, sol)
+    else:
+        U_utau , L_utau = A_L_sum_U_py(UTAU[l])
+        sol = gauss_seidel_py(U_utau , L_utau, b, itr, sol)
+    return sol
 
 """
 
