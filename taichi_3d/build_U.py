@@ -88,7 +88,7 @@ def build_U(weight, b, l, P, V):
     U1 = csr_matrix((data, (rows, cols)), shape=(dims * n, t * b[0, 0]))
     U.append(U1)
 
-    #plt.spy(U1, precision=0.5, markersize=5)
+    #plt.spy(U1, precision=0.5, markersize=0.1)
     #plt.show()
 
     # Regularize  ## TODO: ti.kernel
@@ -113,7 +113,7 @@ def build_U(weight, b, l, P, V):
 
 
     # if we have more than 1 level in MG ## TODO: ti.kernel
-    if l != 1:
+    if l != 0:
         P_j = P
         for j in range(1, l):
             P_j = P_j[:b[0, j], :]

@@ -1,8 +1,8 @@
 import taichi as ti
 import numpy as np
-from scipy.sparse import csr_matrix, csc_matrix, isspmatrix
+from scipy.sparse import csr_matrix, csc_matrix, isspmatrix, tril
 from scipy.sparse.linalg import spsolve_triangular
-
+from time import time
 #ti.init(arch=ti.cpu)
 
 @ti.kernel
@@ -32,14 +32,21 @@ def gauss_seidel_ti(U:  ti.ext_arr(), solver : ti.template(), b: ti.template(), 
                               ## so that it be used by the ti.kernel gauss_seidel_itr
     return x
 
-def gauss_seidel_py(U_field: ti.template(), U:  ti.ext_arr(), L:  ti.ext_arr(), b: ti.template(),\
-                 itr: ti.i32, x: ti.template(), x_old: ti.template()):
+def gauss_seidel_py(U, L, b, itr, sol):
+    x = sol
     for iter in range(itr):
         print(iter)
-        gauss_seidel_itr(U_field, b, x, x_old)
+        
+        x_old = x
+
         # x = L \ b - U x_old
-        xtemp = spsolve_triangular(L, x.to_numpy(), lower=True).astype(np.float32)
-        fill_field(x, xtemp)
+        start = time()
+        x = b - U.dot(x_old)
+        start = time() - start
+        print(start, " s")
+
+        x = spsolve_triangular(L, x, lower=True).astype(np.float32)
+        
     return x
 
 
@@ -103,7 +110,7 @@ def A_L_sum_U_ti(A):  ## TODO: ti.kernel
     return U, solver
 
 def A_L_sum_U_py(A):  ## TODO: ti.kernel
-    L_np = np.tril(A).astype(np.float32)
+    L_np = tril(A).astype(np.float32)
     U_np = (A - L_np).astype(np.float32)
     # convert to sparse format for fast triplets fill
     L_np = csr_matrix(L_np)
