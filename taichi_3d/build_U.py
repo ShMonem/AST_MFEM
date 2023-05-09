@@ -117,11 +117,34 @@ def build_U(weight, b, l, P, V):
         P_j = P
         for j in range(1, l):
             P_j = P_j[:b[0, j], :]
-            w = closest_index(P[:b[0, j-1], :], P_j)
-            U_j = csr_matrix((t * b[j - 1], t * b[j]))
+
+            ti_P_j = ti.Vector.field(3, dtype=ti.f32, shape=b[0, j])
+            ti_P_last = ti.Vector.field(3, dtype=ti.f32, shape=b[0, j-1])
+            ti_P_j.from_numpy(P_j)
+            P_last = P[:b[0, j-1], :]
+            ti_P_last.from_numpy(P_last)
+            weight = ti.field(ti.f32, shape=b[0, j-1])
+            D = ti.Vector.field(P_j.shape[0], dtype=ti.f32, shape=P_last.shape[0])
+
+            closest_index(ti_P_last, ti_P_j, weight, D)
+            U_j = csr_matrix((t * b[0, j-1], t * b[0, j]))
+            w = weight.to_numpy().astype("int")
+
+            # i = np.tile(np.arange(t * b[0, j-1]), (t, 1))
+            # j = (w.T * t).T  # in matlab: j = (weight * t- (t-1))
+            # j = np.tile(j, (t * t, 1)).ravel("F")
+            #
+            # offset = np.tile(np.arange(t), t * b[0, j-1]).ravel("F")
+            #
+            # data = tmp.ravel("F").astype("float")
+            # rows = i.ravel("F")
+            # cols = j.ravel("F") + offset.ravel("F")
+            # # print("cols min:", np.min(cols))
+            # U1 = csr_matrix((data, (rows, cols)), shape=(dims * n, t * b[0, 0]))
             for k in range(b[j - 1, 0]):
                 tmp = csr_matrix(np.eye(t))
-                U_j[t * k - 5:t * k, (w[k - 1, 0] - 1) * t:w[k - 1, 0]  ] = tmp  ## TODO: fix this is wrong
+                U_j[t * k:t * (k+1), w[k] * t:w[k]*t+t] = tmp
+            U.append(U_j)
     return U, NN
 """
 # Numerical test
@@ -141,6 +164,7 @@ print("NN:", NN)
 """
 
 if __name__ == '__main__':
+    ti.init()
     np.random.seed(42)
 
     n_vertices = 30
@@ -152,4 +176,4 @@ if __name__ == '__main__':
     V = np.random.rand(n_vertices, 3)
 
     U, NN = build_U(weight, b, l, P, V)
-    # print("NN:", NN)
+    print(U[1])
