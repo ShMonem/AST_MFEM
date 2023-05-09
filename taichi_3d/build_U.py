@@ -129,18 +129,6 @@ def build_U(weight, b, l, P, V):
             closest_index(ti_P_last, ti_P_j, weight, D)
             U_j = csr_matrix((t * b[0, j-1], t * b[0, j]))
             w = weight.to_numpy().astype("int")
-
-            # i = np.tile(np.arange(t * b[0, j-1]), (t, 1))
-            # j = (w.T * t).T  # in matlab: j = (weight * t- (t-1))
-            # j = np.tile(j, (t * t, 1)).ravel("F")
-            #
-            # offset = np.tile(np.arange(t), t * b[0, j-1]).ravel("F")
-            #
-            # data = tmp.ravel("F").astype("float")
-            # rows = i.ravel("F")
-            # cols = j.ravel("F") + offset.ravel("F")
-            # # print("cols min:", np.min(cols))
-            # U1 = csr_matrix((data, (rows, cols)), shape=(dims * n, t * b[0, 0]))
             for k in range(b[j - 1, 0]):
                 tmp = csr_matrix(np.eye(t))
                 U_j[t * k:t * (k+1), w[k] * t:w[k]*t+t] = tmp
