@@ -74,21 +74,18 @@ def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
 
     # compute residual
     r = b - A.dot(sol)
-
     # restrict to lower res grid
     red_res = Ub[l].T.dot(r)
-    
-    e = np.zeros(red_res.shape)
+    e = np.zeros((red_res.shape[0], 1))
     if l == (len(Ub) -1 ): # reached the last reduction matrix in the list
         e = spsolve(UTAU[l], red_res)
     else:
         e = v_cycle_py(A, U, L, b, UTAU, Ub, l+1, itr, e)
-
     #update_sol_with_e(sol, Ub[l], e)
     #print(type(Ub[l]), type(e), type(sol))
-    sol = sol + Ub[l].dot(e)
+    sol = sol + Ub[l].dot(e).reshape(-1,1)
     if l == 0:
-        sol = gauss_seidel_py(U, L, b, itr, sol)
+        sol = gauss_seidel_py( U, L, b, itr, sol)
     else:
         U_utau , L_utau = A_L_sum_U_py(UTAU[l])
         sol = gauss_seidel_py(U_utau , L_utau, b, itr, sol)

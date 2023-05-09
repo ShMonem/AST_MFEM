@@ -312,7 +312,7 @@ print('| numpy projected basis                              |', round(end - star
 normVal = float('inf')
 itr = 0
 tol = 1e-5
-sol =  np.zeros(b.shape, dtype=np.float32)
+sol = np.zeros(b.shape)
 
 start = time()
 rows, cols = A.nonzero()
@@ -345,9 +345,9 @@ while normVal > tol:
     #sol = v_cycle_ti(A_field, b_field, UTAU, projA_solvers, Ub,  l, U, L_solver, itr_num,  x_old)
     sol = v_cycle_py(A, U, L, b, UTAU, Ut, l, itr_num, sol_old)
     end = time()
-    print('V_cycle, itr', itr, 'in ', round(end - start, 3),'s')
+    #print('V_cycle, itr', itr, 'in ', round(end - start, 3),'s')
     normVal = npla.norm(b - A.dot(sol))
-    itr = itr + 1
+    #itr = itr + 1
     print("error: ",normVal)
 
 print(sol.shape)

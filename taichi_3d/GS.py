@@ -34,19 +34,13 @@ def gauss_seidel_ti(U:  ti.ext_arr(), solver : ti.template(), b: ti.template(), 
 
 def gauss_seidel_py(U, L, b, itr, sol):
     x = sol
-    for iter in range(itr):
-        print(iter)
-        
-        x_old = x
+    for iter in range(itr):        
+        x_old = x.copy()
 
         # x = L \ b - U x_old
-        start = time()
         x = b - U.dot(x_old)
-        start = time() - start
-        print(start, " s")
+        x = spsolve_triangular(L, x, lower=True)
 
-        x = spsolve_triangular(L, x, lower=True).astype(np.float32)
-        
     return x
 
 
