@@ -176,4 +176,6 @@ if __name__ == '__main__':
     V = np.random.rand(n_vertices, 3)
 
     U, NN = build_U(weight, b, l, P, V)
-    print(U[1])
+    import matplotlib.pyplot as plt
+    plt.matshow(U[0].toarray())
+    plt.show()
