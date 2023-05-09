@@ -17,7 +17,7 @@ def U_toTichi(Ut, A, Ub, UTAU,projA_solvers, NN):
         print(type(Ut[l]))
         #print(isspmatrix(Ut[l]))
         rows, cols = Ut[l].nonzero()
-        #U_l = ti.linalg.SparseMatrix(n=Ut[l].shape[0], m=Ut[l].shape[1], dtype=ti.f32) 
+        #U_l = ti.linalg.SparseMatrix(n=Ut[l].shape[0], m=Ut[l].shape[1], dtype=ti.f32)
         #triplets_u_l = ti.Vector.ndarray(n=3, dtype=ti.f32, shape= rows.shape[0])
         #fill_tripletsSparse(triplets_u_l, rows, cols, Ut[l].data)
         #U_l.build_from_ndarray(triplets_u_l)
@@ -34,11 +34,11 @@ def U_toTichi(Ut, A, Ub, UTAU,projA_solvers, NN):
 
         UTAU_l = ti.linalg.SparseMatrix(n=UTAUt_l.shape[0], m=UTAUt_l.shape[1], dtype=ti.f32)
         triplets_utau_l = ti.Vector.ndarray(n=3, dtype=ti.f32, shape= UTAUt_l.nnz)
-        
+
         rows_, cols_ = UTAUt_l.nonzero()
         fill_tripletsSparse(triplets_utau_l, rows_, cols_, UTAUt_l.data,)
-        UTAU_l.build_from_ndarray(triplets_utau_l) 
-        
+        UTAU_l.build_from_ndarray(triplets_utau_l)
+
         UTAU.append(UTAU_l) # projected basis list
         print("UTAT_l filled")
         #UTAU_shapes.append(UTAUt_l.shape)
@@ -76,14 +76,14 @@ def build_U(weight, b, l, P, V):
 
     # building sparse matrix of U by computing index of each entry first
     i = np.tile(np.arange(dims * n), (t, 1))
-    j = (weight * t)   # in matlab: j = (weight * t- (t-1))
+    j = (weight * t).T   # in matlab: j = (weight * t- (t-1))
     j = np.tile(j, (dims * t, 1)).ravel("F")
-    
-    offset = np.tile(np.arange(t), (dims * n, 1)).ravel("F")
+
+    offset = np.tile(np.arange(t), dims * n).ravel("F")
 
     data = tmp.ravel("F").astype("float")
     rows = i.ravel("F")
-    cols = (j + offset).ravel("F")
+    cols = j.ravel("F") + offset.ravel("F")
     #print("cols min:", np.min(cols))
     U1 = csr_matrix((data, (rows, cols)), shape=(dims * n, t * b[0, 0]))
     U.append(U1)
@@ -92,11 +92,11 @@ def build_U(weight, b, l, P, V):
     #plt.show()
 
     # Regularize  ## TODO: ti.kernel
-    NN = csr_matrix((t * b[0, 0], t * b[0, 0]))  
+    NN = csr_matrix((t * b[0, 0], t * b[0, 0]))
     for i in range(b[0, 0]):
         # find the indecies in weight that equal i
         # that is the verts indecies have "i" as the closesd handels
-        k = np.argwhere(weight == i).ravel()
+        k = np.nonzero(weight == i)[0]
         Ub = homoV[k, :]
         Z = Ub.T @ Ub
         D, Vz = eigh(Z)
@@ -110,19 +110,19 @@ def build_U(weight, b, l, P, V):
                 regMat = kron(reg, I)
                 NN[i*t:(i+1)*t,i*t:(i+1)*t] = regMat
 
-    
+
 
     # if we have more than 1 level in MG ## TODO: ti.kernel
     if l != 1:
         P_j = P
         for j in range(1, l):
-            P_j = P_j[:b[j, 0], :]
-            w = closest_index(P[:b[j - 1, 0], :], P_j)
+            P_j = P_j[:b[0, j], :]
+            w = closest_index(P[:b[0, j-1], :], P_j)
             U_j = csr_matrix((t * b[j - 1], t * b[j]))
             for k in range(b[j - 1, 0]):
                 tmp = csr_matrix(np.eye(t))
                 U_j[t * k - 5:t * k, (w[k - 1, 0] - 1) * t:w[k - 1, 0]  ] = tmp  ## TODO: fix this is wrong
-    return U, NN            
+    return U, NN
 """
 # Numerical test
 np.random.seed(42)
@@ -139,3 +139,17 @@ U, NN = build_U(weight, b, l, P, V)
 print("U:", U)
 print("NN:", NN)
 """
+
+if __name__ == '__main__':
+    np.random.seed(42)
+
+    n_vertices = 30
+    n_handles = 10
+    weight = np.random.randint(0, n_handles, size=(n_vertices, 1))
+    b = np.array([[n_handles, 3]])
+    l = 2
+    P = np.random.rand(n_handles, 3)
+    V = np.random.rand(n_vertices, 3)
+
+    U, NN = build_U(weight, b, l, P, V)
+    # print("NN:", NN)
