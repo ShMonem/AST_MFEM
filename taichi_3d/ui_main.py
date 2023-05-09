@@ -4,7 +4,7 @@ import polyscope.imgui as psim
 from skeleton import Skeleton
 
 frame = 0
-skel_anim = np.load("../data/skel_anim.npy")
+skel_anim = np.load(r"\\wsl.localhost\Ubuntu\home\monem\disneyPixarResearchHead\autoSkinning\AST_MFEM\data\skel_anim.npy")
 sk = Skeleton()
 bone_handles = []
 
@@ -21,7 +21,7 @@ def callback():
             for i, bone in enumerate(sk.skeleton):
                 bone_handles[i].update_node_positions(bone.get_verts())
         else:
-            tms = np.load("../data/skel_ws_tms.npy")
+            tms = np.load(r"\\wsl.localhost\Ubuntu\home\monem\disneyPixarResearchHead\autoSkinning\AST_MFEM\data\skel_ws_tms.npy")
             sk.set_bones(tms, transpose=True)
             for i, bone in enumerate(sk.skeleton):
                 bone_handles[i].update_node_positions(bone.get_verts())
@@ -32,7 +32,9 @@ def main():
     ps.set_ground_plane_mode("none")
     ps.init()
 
-    sk.load_skeleton("../data/skel_ws_tms.npy", "../data/skel_hier.json", "../data/skel_names.npy", transpose=True)
+    sk.load_skeleton(r"\\wsl.localhost\Ubuntu\home\monem\disneyPixarResearchHead\autoSkinning\AST_MFEM\data\skel_ws_tms.npy",
+                      r"\\wsl.localhost\Ubuntu\home\monem\disneyPixarResearchHead\autoSkinning\AST_MFEM\data\skel_hier.json",
+                        r"\\wsl.localhost\Ubuntu\home\monem\disneyPixarResearchHead\autoSkinning\AST_MFEM\data\skel_names.npy", transpose=True)
 
     for i, bone in enumerate(sk.skeleton):
         tmp = ps.register_curve_network("joint" + str(i), bone.get_verts(), bone.get_edges(), radius=0.002)
