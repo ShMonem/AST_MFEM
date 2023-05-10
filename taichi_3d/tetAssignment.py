@@ -28,11 +28,11 @@ def tetAssignment(V: ti.template(), T: ti.template(), J: ti.template(), tetAssig
         barycenter = ti.Vector([0.0, 0.0, 0.0])
         for j in range(4):
             barycenter += V[T[i][j]] / 4.0
-        max_dist = -1.0
+        min_dist = 1000000.0
         for j in range(J.shape[0]):
             d = dist(J[j], barycenter)
-            if d > max_dist:
-                max_dist = d
+            if d < min_dist:
+                min_dist = d
                 tetAssign[i] = j
 
 def main():
