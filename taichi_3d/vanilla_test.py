@@ -164,7 +164,7 @@ if __name__ == '__main__':
     x_old = ti.field(dtype=ti.f32, shape=(x.shape[0],))
     result = ti.field(dtype=ti.f32, shape=x.shape[0])
     fill_field(x, np.squeeze(sol_init))
-    itr_num = 100
+    itr_num = 3
     l = len(Ut) - 1
     U_field, U, L = A_L_sum_U_py(A)
     while normVal > tol:
