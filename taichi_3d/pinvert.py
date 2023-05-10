@@ -17,10 +17,10 @@ def pinvert(V: ti.template(), h: ti.template(), weight: ti.template(), D: ti.tem
             D[i, j] = ti.sqrt(dist_sq)
 
     # Get the index of handles with min distance
-    for i in range(n_vertices):
+    for i in range(n_handles):
         min_dist_idx = 0
-        for j in range(1, n_handles):
-            if D[i, j] < D[i, min_dist_idx]:
+        for j in range(1, n_vertices):
+            if D[j, i] < D[min_dist_idx, i]:
                 min_dist_idx = j
         weight[i] = min_dist_idx
 
