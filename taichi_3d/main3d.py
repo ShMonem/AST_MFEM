@@ -60,10 +60,11 @@ if __name__ == "__main__":
     ti.init(arch=ti.cpu)
     V = ti.Vector.field(3, dtype=ti.f32, shape=Vt.shape[0])
     F = ti.Vector.field(3, dtype=ti.i32, shape=Ft.shape[0])
-    T = ti.Vector.field(3, dtype=ti.i32, shape=Tt.shape[0])
+    T = ti.Vector.field(4, dtype=ti.i32, shape=Tt.shape[0])
 
     V.from_numpy(Vt)
     F.from_numpy(Ft)
+    T.from_numpy(Tt)
 
     ## an array contains the number of handles for each multi-grid level
     b_levels = np.array([[50]]).astype(int)
@@ -142,7 +143,7 @@ if __name__ == "__main__":
 
     fAssign = ti.field(dtype=ti.i32, shape=Tt.shape[0])
     tetAssignment(V, T, midpoints, fAssign)  # we use midpoint for rotation
-    # print(fAssign) ## TODO: double check results with matlab
+    print(T) ## TODO: double check results with matlab
     end = time()
     print('| assign tet midpoints                               |', round(end - start, 3), 's|')
 
@@ -174,6 +175,7 @@ if __name__ == "__main__":
     # this is slow, could be improved
     rows_T = Tt.shape[0]
     fAssign = fAssign.to_numpy()
+    print(fAssign)
     R = np.zeros((rows_T, 9))
     for i in range(rows_T):
         R[i, :] = newR[fAssign[i], :]
