@@ -2,3 +2,4 @@
 __pycache__/
 .polyscope.ini
 imgui.ini
+.idea/
