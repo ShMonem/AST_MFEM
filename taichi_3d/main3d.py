@@ -230,7 +230,7 @@ if __name__ == "__main__":
         if hier[i] == 0:
             continue
         else:
-            midpoints[i - 1, :] = (new_handles[i, :] + new_handles[hier[i], :]) / 2
+            midpoints[i - 1, :] = (new_handles[i, :] + new_handles[hier[i]-1, :]) / 2
 
     new_new_handles = np.zeros((new_handles.shape[0] + midpoints.shape[0], 3))
     new_new_handles[:new_handles.shape[0], :] = new_handles

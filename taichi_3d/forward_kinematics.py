@@ -25,7 +25,7 @@ def forward_kinematics(handles: ti.ext_arr(), hier: ti.ext_arr(), eulers: ti.ext
     n = handles.shape[0]
     for i in range(n):    
         lo = compute_rotation(eulers[i, 0], eulers[i, 1], eulers[i, 2]) # (3, 3)
-        if hier[i] == 0:  # what does this case mean?
+        if hier[i] == 0:  # what does this case mean? # this is the root node
             for j in range(3):
                 for k in range(3):
                     T[i, j * 3 + k] = ti.cast(lo[j, k], ti.f32) # F order
