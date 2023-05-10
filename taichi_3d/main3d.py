@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
     fAssign = ti.field(dtype=ti.i32, shape=Tt.shape[0])
     tetAssignment(V, T, midpoints, fAssign)  # we use midpoint for rotation
-    print(T) ## TODO: double check results with matlab
+    # print(T) ## TODO: double check results with matlab
     end = time()
     print('| assign tet midpoints                               |', round(end - start, 3), 's|')
 
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     # computation is same as fAssign
 
     # initiate dummy mats used by taichi
-    vAssign = ti.field(ti.i32, shape=(Vt.shape[0],))
+    vAssign = ti.field(ti.i32, shape=(Ht.shape[0],))
     Dt = ti.field(ti.f32, shape=(Vt.shape[0], Ht.shape[0]))
 
     # for some very wird reason, at this point "V" was not known to the compiler
@@ -207,6 +207,7 @@ if __name__ == "__main__":
 
     start = time()
     pinvert(V, H, vAssign, Dt)
+    print(vAssign)
 
     # print(vAssign)
     I = np.eye(3)
