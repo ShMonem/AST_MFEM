@@ -39,7 +39,7 @@ if __name__ == '__main__':
 
     B = def_grad3D(Vt, Tt)
     mu = 100  # material properties
-    k_bc = 1000  # stiffness
+    k_bc = 100000  # stiffness
     s = np.zeros((6 * Tt.shape[0], 1))
     grad = linear_tet3dmesh_arap_ds(Vt, Tt, s, mu)
     hess = linear_tet3dmesh_arap_ds2(Vt, Tt, s, mu)
@@ -53,11 +53,10 @@ if __name__ == '__main__':
     py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
     py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
 
-
     # translate everything to taichi
     ti.init(arch=ti.cpu)
     V = ti.Vector.field(3, dtype=ti.f32, shape=Vt.shape[0])
-    T = ti.Vector.field(3, dtype=ti.i32, shape=Tt.shape[0])
+    T = ti.Vector.field(4, dtype=ti.i32, shape=Tt.shape[0])
     V.from_numpy(Vt)
     T.from_numpy(Tt)
     weight = ti.field(ti.i32, shape=Vt.shape[0])
@@ -79,8 +78,8 @@ if __name__ == '__main__':
     fAssign = ti.field(dtype=ti.i32, shape=Tt.shape[0])
     tetAssignment(V, T, midpoints, fAssign)
 
-    eulers = np.array([[0.0, 0.0, 0.0], [0.0, np.pi / 4, 0.0], [0.0, 0.0, 0.0]])
-    # eulers = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    # eulers = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, np.pi/3], [0.0, 0.0, np.pi/2]])
     n_newR = handles.shape[0] - 1
     n_newR = handles.shape[0] - 1
     Tdummy = np.zeros((n_newR + 1, 9))
@@ -122,16 +121,13 @@ if __name__ == '__main__':
         if hier[i] == 0:
             continue
         else:
-            midpoints[i - 1, :] = (new_handles[i, :] + new_handles[hier[i], :]) / 2
+            midpoints[i - 1, :] = (new_handles[i, :] + new_handles[hier[i] - 1, :]) / 2
 
     new_new_handles = np.zeros((new_handles.shape[0] + midpoints.shape[0], 3))
     new_new_handles[:new_handles.shape[0], :] = new_handles
     new_new_handles[new_handles.shape[0]:, :] = midpoints
 
     pinned_b = igl2bart(new_new_handles)
-    # scipy.io.savemat("../data/pinned_b.mat", {"mat": pinned_b})
-
-    pinned_b = scipy.io.loadmat("../data/pinned_b.mat")['pinned_b']
 
     nq = q.shape[0]
     ns = s.shape[0]
@@ -140,6 +136,7 @@ if __name__ == '__main__':
     J = compute_J(R_mat_py, B)
     A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
     b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
+    b = np.squeeze(b)
 
     UTAU = []
     for i in range(len(Ut)):
@@ -147,6 +144,7 @@ if __name__ == '__main__':
             UTAU.append(Ut[i].T.dot(A).dot(Ut[i]) + NN)
         else:
             UTAU.append(Ut[i].T.dot(UTAU[i - 1]).dot(Ut[i]))
+
 
     normVal = float('inf')
     itr = 0
@@ -175,19 +173,20 @@ if __name__ == '__main__':
         end = time()
         # print('V_cycle, itr', itr, 'in ', round(end - start, 3),'s')
         normVal = npla.norm(b - A.dot(sol))
+        # normVal = npla.norm(sol - sol_old)
         # itr = itr + 1
         print("error: ", normVal)
 
+    # sol = spsolve(A, b)
+    print(npla.norm(b - A.dot(sol)))
     print(sol.shape)
 
 
 
     # visualization
-    # ps.set_program_name("mfem")
-    # ps.set_ground_plane_mode("shadow_only")
-    # ps.init()
-    # ps_vol = ps.register_volume_mesh("test volume mesh", Vt, tets=Tt)
-    #
-    # points = Vt[py_vAssign, :]
-    # ps_cloud = ps.register_point_cloud("my points", points)
-    # ps.show()
+    ps.set_program_name("mfem")
+    ps.set_ground_plane_mode("shadow_only")
+    ps.init()
+    ps_vol = ps.register_volume_mesh("test volume mesh", sol.reshape(-1, 3), tets=Tt)
+
+    ps.show()
