@@ -11,6 +11,7 @@ from scipy.sparse.linalg import svds, lsqr, spsolve
 from scipy.sparse import csr_matrix, csc_matrix, isspmatrix
 from scipy.linalg import pinv
 
+import polyscope as ps
 import meshplot
 from meshplot import plot, subplot, interact
 import scipy.sparse as sps
@@ -348,6 +349,7 @@ if __name__ == "__main__":
         end = time()
         # print('V_cycle, itr', itr, 'in ', round(end - start, 3),'s')
         normVal = npla.norm(b - A.dot(sol))
+        # normVal = npla.norm(sol - sol_old)
         # itr = itr + 1
         print("error: ", normVal)
 
@@ -358,3 +360,9 @@ if __name__ == "__main__":
     p.to_html()
     #p.save("myp")
     """
+    ps.set_program_name("mfem")
+    ps.set_ground_plane_mode("shadow_only")
+    ps.init()
+    ps_vol = ps.register_volume_mesh("test volume mesh", sol.reshape(-1, 3), tets=Tt)
+
+    ps.show()

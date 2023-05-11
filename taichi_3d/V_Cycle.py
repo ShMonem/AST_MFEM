@@ -6,7 +6,7 @@ from scipy.sparse.linalg import spsolve
 # gauss_seidel_solver is a python function, and is defined in GS
 from GS import *
 from build_U import *
-
+from time import time
 
 
 placed_fields = False
@@ -83,7 +83,8 @@ def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
         e = v_cycle_py(A, U, L, b, UTAU, Ub, l+1, itr, e)
     #update_sol_with_e(sol, Ub[l], e)
     #print(type(Ub[l]), type(e), type(sol))
-    sol = sol + Ub[l].dot(e).reshape(-1,1)
+    # sol = sol + Ub[l].dot(e).reshape(-1,1)
+    sol = sol + Ub[l].dot(e)
     if l == 0:
         sol = gauss_seidel_py( U, L, b, itr, sol)
     else:
