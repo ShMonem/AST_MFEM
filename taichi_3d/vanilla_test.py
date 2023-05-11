@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import taichi as ti
 import igl
 import scipy
