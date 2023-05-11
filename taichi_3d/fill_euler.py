@@ -5,7 +5,7 @@ def fill_euler(handles):
 
     eulers = np.zeros ((num_handles, 3))
     
-    eulers [0, :] = [0.496 * np.pi / 180, -0.240 * np.pi / 180 , 34.824 * np.pi / 180 + (np.pi / 2)] 
+    eulers [0, :] = [0.496 * np.pi / 180, -0.240 * np.pi / 180 , 34.824 * np.pi / 180]
     eulers [1, :] = [-0.326 * np.pi / 180, 0.444 * np.pi / 180, 6.113 * np.pi / 180] 
     eulers [2, :] = [-0.000 * np.pi / 180, 0.000 * np.pi / 180, -8.028 * np.pi / 180] 
     eulers [3, :] = [-0.000 * np.pi / 180, 0.000 * np.pi / 180, -0.646 * np.pi / 180] 

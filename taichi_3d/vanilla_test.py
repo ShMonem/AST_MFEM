@@ -26,12 +26,24 @@ from pinvert import *
 from igl2bart import *
 from compute_J import *
 from V_Cycle import *
+from fill_euler import *
 
 
 if __name__ == '__main__':
-    mesh = meshio.read("../data/beam.mesh")
+
+    # read beam model
+    # mesh = meshio.read("../data/beam.mesh")
+
+    # read human model
+    mesh = meshio.read("../data/output_mfem1.msh")
+
     Vt = mesh.points
-    Tt = mesh.cells[1].data.astype("int32")
+
+    # load beam tet
+    # Tt = mesh.cells[1].data.astype("int32")
+
+    # load human tet
+    Tt = mesh.cells[0].data.astype("int32")
 
     print("Reading data...")
     print("Vertices: ", len(Vt), Vt.shape)
@@ -39,19 +51,33 @@ if __name__ == '__main__':
 
     B = def_grad3D(Vt, Tt)
     mu = 100  # material properties
-    k_bc = 100000  # stiffness
+    k_bc = 10000  # stiffness
     s = np.zeros((6 * Tt.shape[0], 1))
     grad = linear_tet3dmesh_arap_ds(Vt, Tt, s, mu)
     hess = linear_tet3dmesh_arap_ds2(Vt, Tt, s, mu)
 
     # making a skeleton
-    hier = np.array([0, 1, 2])
-    handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
 
-    b_levels = np.array([[30]]).astype(int)
+    # load human skeleton
+    handlest = scipy.io.loadmat('../data/handles.mat')
+    hiert = scipy.io.loadmat("../data/hierarchy.mat")
+    handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
+    hier = hiert['hierarchy'][:, 1]
+
+    # make beam skeleton
+    # hier = np.array([0, 1, 2])
+    # handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
+
+    b_levels = np.array([[50]]).astype(int)
     l = b_levels.shape[0]
-    py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-    py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
+
+    # load beam samples
+    # py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
+    # py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
+
+    # load human samples
+    py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
+    py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
 
     # translate everything to taichi
     ti.init(arch=ti.cpu)
@@ -78,9 +104,13 @@ if __name__ == '__main__':
     fAssign = ti.field(dtype=ti.i32, shape=Tt.shape[0])
     tetAssignment(V, T, midpoints, fAssign)
 
-    eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
-    # eulers = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, np.pi/3], [0.0, 0.0, np.pi/2]])
-    n_newR = handles.shape[0] - 1
+    # beam eulers
+    # eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    # eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
+
+    # load human eulers
+    eulers = fill_euler(handles)
+    # n_newR = handles.shape[0] - 1
     n_newR = handles.shape[0] - 1
     Tdummy = np.zeros((n_newR + 1, 9))
     newR = np.zeros((n_newR, 9))
@@ -134,6 +164,7 @@ if __name__ == '__main__':
     nlambda = 9 * Tt.shape[0]
 
     J = compute_J(R_mat_py, B)
+    print("J computed")
     A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
     b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
     b = np.squeeze(b)
