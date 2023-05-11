@@ -32,18 +32,18 @@ from fill_euler import *
 if __name__ == '__main__':
 
     # read beam model
-    # mesh = meshio.read("../data/beam.mesh")
+    mesh = meshio.read("../data/beam.mesh")
 
     # read human model
-    mesh = meshio.read("../data/output_mfem1.msh")
+    # mesh = meshio.read("../data/output_mfem1.msh")
 
     Vt = mesh.points
 
     # load beam tet
-    # Tt = mesh.cells[1].data.astype("int32")
+    Tt = mesh.cells[1].data.astype("int32")
 
     # load human tet
-    Tt = mesh.cells[0].data.astype("int32")
+    # Tt = mesh.cells[0].data.astype("int32")
 
     print("Reading data...")
     print("Vertices: ", len(Vt), Vt.shape)
@@ -59,25 +59,29 @@ if __name__ == '__main__':
     # making a skeleton
 
     # load human skeleton
-    handlest = scipy.io.loadmat('../data/handles.mat')
-    hiert = scipy.io.loadmat("../data/hierarchy.mat")
-    handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
-    hier = hiert['hierarchy'][:, 1]
+    # handlest = scipy.io.loadmat('../data/handles.mat')
+    # hiert = scipy.io.loadmat("../data/hierarchy.mat")
+    # handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
+    # hier = hiert['hierarchy'][:, 1]
 
     # make beam skeleton
-    # hier = np.array([0, 1, 2])
-    # handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
+    hier = np.array([0, 1, 2])
+    handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
 
+    # level of beam
+    b_levels = np.array([[30]]).astype(int)
+
+    # level of human
     b_levels = np.array([[50]]).astype(int)
     l = b_levels.shape[0]
 
     # load beam samples
-    # py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-    # py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
+    py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
+    py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
 
     # load human samples
-    py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
-    py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
+    # py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
+    # py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
 
     # translate everything to taichi
     ti.init(arch=ti.cpu)
@@ -105,11 +109,11 @@ if __name__ == '__main__':
     tetAssignment(V, T, midpoints, fAssign)
 
     # beam eulers
-    # eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
-    # eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
+    eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
 
     # load human eulers
-    eulers = fill_euler(handles)
+    # eulers = fill_euler(handles)
     # n_newR = handles.shape[0] - 1
     n_newR = handles.shape[0] - 1
     Tdummy = np.zeros((n_newR + 1, 9))
