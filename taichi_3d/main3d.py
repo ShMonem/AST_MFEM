@@ -26,8 +26,8 @@ import scipy.io as sio
 
 #import bartels python bindings
 import sys
-sys.path.append("../Bartels/python/build")
-import bartelspy as bt
+#sys.path.append("../Bartels/python/build")
+#cdimport bartelspy as bt
 from time import time
 ## ----------------------------------------------------------
 from closest_index import *

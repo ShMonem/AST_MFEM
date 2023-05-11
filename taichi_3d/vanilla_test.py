@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import taichi as ti
 import igl
 import scipy
@@ -219,5 +220,4 @@ if __name__ == '__main__':
     ps.set_ground_plane_mode("shadow_only")
     ps.init()
     ps_vol = ps.register_volume_mesh("test volume mesh", sol.reshape(-1, 3), tets=Tt)
-
     ps.show()
