@@ -4,7 +4,7 @@ import polyscope.imgui as psim
 from skeleton import Skeletongit
 
 frame = 0
-skel_anim = np.load(r"\\wsl.localhost\Ubuntu\home\monem\disneyPixarResearchHead\autoSkinning\AST_MFEM\data\skel_anim.npy")
+skel_anim = np.load(r"..\..\data\skel_anim.npy")
 sk = Skeleton()
 bone_handles = []
 

@@ -13,7 +13,8 @@ from scipy.sparse import csr_matrix, csc_matrix, isspmatrix
 from scipy.linalg import pinv
 import sys
 from time import time
-sys.path.append("../Bartels/python/build")
+#sys.path.append("..\..\Bartels\python\build")
+sys.path.append(r"..\barterlsBin")
 import bartelspy as bt
 import meshio
 from def_grad3D import *
