@@ -103,7 +103,7 @@ def block_R3d(R):
 
     fill_taichi_matrix(tmp, i, j, el_offset, builder, num_triplets)
 
-    blockR_taichi = builder.build(dtype=ti.f32, _format = 'CSR')  # wrong values!!!
+    blockR_taichi = builder.build(dtype=ti.f32, _format = 'CSR')  
     return blockR_taichi , blockR_numpy
 
 """

@@ -94,11 +94,11 @@ if __name__ == '__main__':
     V.from_numpy(Vt)
     T.from_numpy(Tt)
     weight = ti.field(ti.i32, shape=Vt.shape[0])
-    D = ti.Vector.field(py_P.shape[0], dtype=ti.f32, shape=Vt.shape[0])
+    Ddummy = ti.Vector.field(py_P.shape[0], dtype=ti.f32, shape=Vt.shape[0])
     P = ti.Vector.field(3, dtype=ti.f32, shape=py_P.shape[0])
     P.from_numpy(py_P)
-    closest_index(V, P, weight, D)
-    Ut, NN = build_U(weight.to_numpy(), b_levels, l, P, Vt)
+    closest_index(V, P, weight, Ddummy)   # ti.kernel
+    Ut, NN = build_U(weight.to_numpy(), b_levels, l, P, Vt)   # python function
 
     midpointst = np.zeros((handles.shape[0] - 1, 3))
     for i in range(handles.shape[0]):
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     midpoints.from_numpy(midpointst)
 
     fAssign = ti.field(dtype=ti.i32, shape=Tt.shape[0])
-    tetAssignment(V, T, midpoints, fAssign)
+    tetAssignment(V, T, midpoints, fAssign)  # ti.kernel
 
     # beam eulers
     # eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
@@ -129,9 +129,10 @@ if __name__ == '__main__':
     rows_T = Tt.shape[0]
     py_fAssign = fAssign.to_numpy()
     R = np.zeros((rows_T, 9))
+    # assigning rotations to each tet according to fAssign info
     for i in range(rows_T):
         R[i, :] = newR[py_fAssign[i], :]
-    R_mat_ti, R_mat_py = block_R3d(R)
+    R_mat_ti, R_mat_py = block_R3d(R)  # python function
 
     num_handles = handles.shape[0]
     num_midpoints = midpointst.shape[0]
@@ -144,7 +145,7 @@ if __name__ == '__main__':
     H.from_numpy(Ht)
     V = ti.field(ti.f32, shape=(Vt.shape[0], 3))
     V.from_numpy(Vt)
-    pinvert(V, H, vAssign, Dt)
+    pinvert(V, H, vAssign, Dt)  # ti.kernel
 
     I = np.eye(3)
     q = igl2bart(Vt)
@@ -172,7 +173,7 @@ if __name__ == '__main__':
     nlambda = 9 * Tt.shape[0]
     start_j = time()
     # J = compute_J(R_mat_py, B)
-    J = compute_J_SVD(R_mat_py, B)
+    J = compute_J_SVD(R_mat_py, B)  # cupy function
     end_j = time()
     print("J computed in {0} seconds".format(end_j-start_j))
     A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
@@ -205,7 +206,7 @@ if __name__ == '__main__':
     fill_field(x, np.squeeze(sol_init))
     itr_num = 3
     l = len(Ut) - 1
-    U_field, U, L = A_L_sum_U_py(A)
+    U_field, U, L = A_L_sum_U_py(A)  # python
     while normVal > tol:
         sol_old = sol
         start = time()

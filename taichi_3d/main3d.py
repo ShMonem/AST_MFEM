@@ -237,7 +237,6 @@ if __name__ == "__main__":
     new_new_handles[:new_handles.shape[0], :] = new_handles
     new_new_handles[new_handles.shape[0]:, :] = midpoints
 
-    # Assuming you have already defined the igl2bart() function
     pinned_b = igl2bart(new_new_handles)
     end = time()
     print('| pin verts, recompute midpoints                     |', round(end - start, 3), 's|')

@@ -86,9 +86,7 @@ def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
         print("SPSolve took {0} seconds".format(end-start))
     else:
         e = v_cycle_py(A, U, L, b, UTAU, Ub, l+1, itr, e)
-    #update_sol_with_e(sol, Ub[l], e)
-    #print(type(Ub[l]), type(e), type(sol))
-    # sol = sol + Ub[l].dot(e).reshape(-1,1)
+
     sol = sol + Ub[l].dot(e)
     if l == 0:
         sol = gauss_seidel_py( U, L, b, itr, sol)
