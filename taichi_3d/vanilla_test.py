@@ -3,6 +3,7 @@ import igl
 import scipy
 import numpy as np
 import numpy.linalg as npla
+import cupy as cp
 import matplotlib.pyplot as plt
 import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
@@ -11,6 +12,7 @@ from scipy.sparse.linalg import svds, lsqr, spsolve
 from scipy.sparse import csr_matrix, csc_matrix, isspmatrix
 from scipy.linalg import pinv
 import sys
+from time import time
 sys.path.append("../Bartels/python/build")
 import bartelspy as bt
 import meshio
@@ -32,18 +34,18 @@ from fill_euler import *
 if __name__ == '__main__':
 
     # read beam model
-    mesh = meshio.read("../data/beam.mesh")
+    # mesh = meshio.read("../data/beam.mesh")
 
     # read human model
-    # mesh = meshio.read("../data/output_mfem1.msh")
+    mesh = meshio.read("../data/output_mfem1.msh")
 
     Vt = mesh.points
 
     # load beam tet
-    Tt = mesh.cells[1].data.astype("int32")
+    # Tt = mesh.cells[1].data.astype("int32")
 
     # load human tet
-    # Tt = mesh.cells[0].data.astype("int32")
+    Tt = mesh.cells[0].data.astype("int32")
 
     print("Reading data...")
     print("Vertices: ", len(Vt), Vt.shape)
@@ -59,29 +61,30 @@ if __name__ == '__main__':
     # making a skeleton
 
     # load human skeleton
-    # handlest = scipy.io.loadmat('../data/handles.mat')
-    # hiert = scipy.io.loadmat("../data/hierarchy.mat")
-    # handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
-    # hier = hiert['hierarchy'][:, 1]
+    handlest = scipy.io.loadmat('../data/handles.mat')
+    hiert = scipy.io.loadmat("../data/hierarchy.mat")
+    handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
+    hier = hiert['hierarchy'][:, 1]
 
     # make beam skeleton
-    hier = np.array([0, 1, 2])
-    handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
+    # hier = np.array([0, 1, 2])
+    # handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
 
     # level of beam
-    b_levels = np.array([[30]]).astype(int)
+    # b_levels = np.array([[30]]).astype(int)
 
     # level of human
     b_levels = np.array([[50]]).astype(int)
+
     l = b_levels.shape[0]
 
     # load beam samples
-    py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-    py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
+    # py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
+    # py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
 
     # load human samples
-    # py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
-    # py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
+    py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
+    py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
 
     # translate everything to taichi
     ti.init(arch=ti.cpu)
@@ -109,12 +112,12 @@ if __name__ == '__main__':
     tetAssignment(V, T, midpoints, fAssign)
 
     # beam eulers
-    eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
-    eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
+    # eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    # eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
 
     # load human eulers
-    # eulers = fill_euler(handles)
-    # n_newR = handles.shape[0] - 1
+    eulers = fill_euler(handles)
+
     n_newR = handles.shape[0] - 1
     Tdummy = np.zeros((n_newR + 1, 9))
     newR = np.zeros((n_newR, 9))
@@ -166,9 +169,11 @@ if __name__ == '__main__':
     nq = q.shape[0]
     ns = s.shape[0]
     nlambda = 9 * Tt.shape[0]
-
-    J = compute_J(R_mat_py, B)
-    print("J computed")
+    start_j = time()
+    # J = compute_J(R_mat_py, B)
+    J = compute_J_SVD(R_mat_py, B)
+    end_j = time()
+    print("J computed in {0} seconds".format(end_j-start_j))
     A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
     b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
     b = np.squeeze(b)
@@ -205,9 +210,9 @@ if __name__ == '__main__':
         start = time()
         # sol = v_cycle_ti(A_field, b_field, UTAU, projA_solvers, Ub,  l, U, L_solver, itr_num,  x_old)
         sol = v_cycle_py(A, U, L, b, UTAU, Ut, l, itr_num, sol_old)
-        end = time()
-        # print('V_cycle, itr', itr, 'in ', round(end - start, 3),'s')
         normVal = npla.norm(b - A.dot(sol))
+        end = time()
+        print('V_cycle, itr', itr, 'in ', round(end - start, 3), 's')
         # normVal = npla.norm(sol - sol_old)
         # itr = itr + 1
         print("error: ", normVal)

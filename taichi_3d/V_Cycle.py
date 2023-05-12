@@ -69,8 +69,10 @@ def v_cycle_ti(A_ti: ti.template(), b: ti.template(), UTAU, projA_solvers: ti.te
     return sol
 
 def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
-    
+    start = time()
     sol = gauss_seidel_py(U, L, b, itr, x_init)
+    end = time()
+    print("GS took {0} seconds".format(end-start))
 
     # compute residual
     r = b - A.dot(sol)
@@ -78,7 +80,10 @@ def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
     red_res = Ub[l].T.dot(r)
     e = np.zeros((red_res.shape[0], 1))
     if l == (len(Ub) -1 ): # reached the last reduction matrix in the list
+        start = time()
         e = spsolve(UTAU[l], red_res)
+        end = time()
+        print("SPSolve took {0} seconds".format(end-start))
     else:
         e = v_cycle_py(A, U, L, b, UTAU, Ub, l+1, itr, e)
     #update_sol_with_e(sol, Ub[l], e)

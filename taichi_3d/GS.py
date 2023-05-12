@@ -36,7 +36,7 @@ def gauss_seidel_ti(U:  ti.ext_arr(), solver : ti.template(), b: ti.template(), 
 
 def gauss_seidel_py(U, L, b, itr, sol):
     x = sol
-    for iter in range(itr):
+    for i in range(itr):
         # x_old = x.copy()
         x_old = x
 
