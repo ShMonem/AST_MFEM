@@ -1,64 +1,123 @@
-import taichi as ti
 import numpy as np
+import config
 
-#ti.init(arch=ti.cpu)
 
-@ti.func
-def compute_rotation(alpha, beta, gamma):
-    R = ti.Matrix([
-        [ti.cos(alpha) * ti.cos(beta), 
-         ti.cos(alpha) * ti.sin(beta) * ti.sin(gamma) - ti.sin(alpha) * ti.cos(gamma),
-         ti.cos(alpha) * ti.sin(beta) * ti.cos(gamma) + ti.sin(alpha) * ti.sin(gamma)],
+if config.USE_TAICHI:
+    import taichi as ti
 
-        [ti.sin(alpha) * ti.cos(beta), 
-         ti.sin(alpha) * ti.sin(beta) * ti.sin(gamma) + ti.cos(alpha) * ti.cos(gamma),
-         ti.sin(alpha) * ti.sin(beta) * ti.cos(gamma) - ti.cos(alpha) * ti.sin(gamma)],
+    #ti.init(arch=ti.cpu)
 
-        [-ti.sin(beta),
-         ti.cos(beta) * ti.sin(gamma),
-         ti.cos(beta) * ti.cos(gamma)]
+    @ti.func
+    def compute_rotation_ti(alpha, beta, gamma):
+        R = ti.Matrix([
+            [ti.cos(alpha) * ti.cos(beta),
+             ti.cos(alpha) * ti.sin(beta) * ti.sin(gamma) - ti.sin(alpha) * ti.cos(gamma),
+             ti.cos(alpha) * ti.sin(beta) * ti.cos(gamma) + ti.sin(alpha) * ti.sin(gamma)],
+
+            [ti.sin(alpha) * ti.cos(beta),
+             ti.sin(alpha) * ti.sin(beta) * ti.sin(gamma) + ti.cos(alpha) * ti.cos(gamma),
+             ti.sin(alpha) * ti.sin(beta) * ti.cos(gamma) - ti.cos(alpha) * ti.sin(gamma)],
+
+            [-ti.sin(beta),
+             ti.cos(beta) * ti.sin(gamma),
+             ti.cos(beta) * ti.cos(gamma)]
+        ])
+        return R
+
+    @ti.kernel  ## this kernel might have a bug in the order of the mats
+    def forward_kinematics_ti(handles: ti.ext_arr(), hier: ti.ext_arr(), eulers: ti.ext_arr(), T: ti.ext_arr(), new_handles: ti.ext_arr(), newR: ti.ext_arr()):
+        n = handles.shape[0]
+        for i in range(n):
+            lo = compute_rotation_ti(eulers[i, 0], eulers[i, 1], eulers[i, 2]) # (3, 3)
+            if hier[i] == 0:  # what does this case mean? # this is the root node
+                for j in range(3):
+                    for k in range(3):
+                        T[i, j * 3 + k] = ti.cast(lo[j, k], ti.f32) # F order
+                for k in range(3):
+                    new_handles[i, k] = handles[i, k]
+
+            else:
+
+                for j in range(9):
+                    newR[i - 1, j] = T[int(hier[i] - 1), j]  # only
+                    #print(newR[i - 1, j])
+                    #print("newR",newR[i - 1, j])
+                Tp = ti.Matrix([   # printing shows Tp is always the identity
+                    [T[int(hier[i] - 1), 0], T[int(hier[i] - 1), 3], T[int(hier[i] - 1), 6]],
+                    [T[int(hier[i] - 1), 1], T[int(hier[i] - 1), 4], T[int(hier[i] - 1), 7]],
+                    [T[int(hier[i] - 1), 2], T[int(hier[i] - 1), 5], T[int(hier[i] - 1), 8]],
+                ])
+                #print("Tp", Tp)
+                vecl = ti.Vector([handles[i, l] - handles[int(hier[i] - 1), l] for l in range(3)]) #(3,)
+                vec = ti.Vector([0.0, 0.0, 0.0])
+                for l in range(3):
+                    vec[l] = ti.cast(new_handles[int(hier[i] - 1), l] + Tp[l, :] @ vecl, ti.f32) #(3,)
+                #print("vec",vec)
+                for l in range(3):
+                    new_handles[i, l] = vec[l]
+                    #print("new_handles", new_handles[i, l])
+                #print("lo", lo)
+                temp = Tp @ lo
+                #print("temp", temp)
+                for j in range(3):
+                    for k in range(3):
+                        T[i, j * 3 + k] = ti.cast(temp[k, j], ti.f32)
+                        #print("T", T[i, j * 3 + k] )
+
+
+def compute_rotation_np(alpha, beta, gamma):
+    R = np.array([
+        [np.cos(alpha) * np.cos(beta),
+         np.cos(alpha) * np.sin(beta) * np.sin(gamma) - np.sin(alpha) * np.cos(gamma),
+         np.cos(alpha) * np.sin(beta) * np.cos(gamma) + np.sin(alpha) * np.sin(gamma)],
+
+        [np.sin(alpha) * np.cos(beta),
+         np.sin(alpha) * np.sin(beta) * np.sin(gamma) + np.cos(alpha) * np.cos(gamma),
+         np.sin(alpha) * np.sin(beta) * np.cos(gamma) - np.cos(alpha) * np.sin(gamma)],
+
+        [-np.sin(beta),
+         np.cos(beta) * np.sin(gamma),
+         np.cos(beta) * np.cos(gamma)]
     ])
-    return R
+    return R.astype(float)
 
-@ti.kernel  ## this kernel might have a bug in the order of the mats
-def forward_kinematics(handles: ti.ext_arr(), hier: ti.ext_arr(), eulers: ti.ext_arr(), T: ti.ext_arr(), new_handles: ti.ext_arr(), newR: ti.ext_arr()):
+
+def forward_kinematics_np(handles, hier, eulers):
     n = handles.shape[0]
-    for i in range(n):    
-        lo = compute_rotation(eulers[i, 0], eulers[i, 1], eulers[i, 2]) # (3, 3)
+    new_handles = np.zeros_like(handles)
+    n_newR = handles.shape[0] - 1
+    newR = np.zeros((n_newR, 9))
+    newR[:, [0, 4, 8]] = 1
+    T = np.zeros((n_newR + 1, 9))
+    T[:, [0, 4, 8]] = 1
+    for i in range(n):
+        loc_rot_mtx = compute_rotation_np(eulers[i, 0], eulers[i, 1], eulers[i, 2])  # (3, 3)
         if hier[i] == 0:  # what does this case mean? # this is the root node
             for j in range(3):
                 for k in range(3):
-                    T[i, j * 3 + k] = ti.cast(lo[j, k], ti.f32) # F order
+                    T[i, j * 3 + k] = loc_rot_mtx[j, k]  # F order
             for k in range(3):
                 new_handles[i, k] = handles[i, k]
-                
         else:
-            
             for j in range(9):
-                newR[i - 1, j] = T[int(hier[i] - 1), j]  # only 
-                #print(newR[i - 1, j])
-                #print("newR",newR[i - 1, j])
-            Tp = ti.Matrix([   # printing shows Tp is always the identity
+                newR[i - 1, j] = T[int(hier[i] - 1), j]
+            Tp = np.array([  # printing shows Tp is always the identity
                 [T[int(hier[i] - 1), 0], T[int(hier[i] - 1), 3], T[int(hier[i] - 1), 6]],
                 [T[int(hier[i] - 1), 1], T[int(hier[i] - 1), 4], T[int(hier[i] - 1), 7]],
                 [T[int(hier[i] - 1), 2], T[int(hier[i] - 1), 5], T[int(hier[i] - 1), 8]],
             ])
-            #print("Tp", Tp)
-            vecl = ti.Vector([handles[i, l] - handles[int(hier[i] - 1), l] for l in range(3)]) #(3,)
-            vec = ti.Vector([0.0, 0.0, 0.0])
+            vecl = np.array([handles[i, l] - handles[int(hier[i] - 1), l] for l in range(3)])
+            vec = np.array([0.0, 0.0, 0.0])
             for l in range(3):
-                vec[l] = ti.cast(new_handles[int(hier[i] - 1), l] + Tp[l, :] @ vecl, ti.f32) #(3,)
-            #print("vec",vec)
+                vec[l] = new_handles[int(hier[i] - 1), l] + Tp[l, :] @ vecl
             for l in range(3):
                 new_handles[i, l] = vec[l]
-                #print("new_handles", new_handles[i, l])
-            #print("lo", lo)
-            temp = Tp @ lo
-            #print("temp", temp)
+            temp = Tp @ loc_rot_mtx
+            temp = temp.astype(float)
             for j in range(3):
                 for k in range(3):
-                    T[i, j * 3 + k] = ti.cast(temp[k, j], ti.f32)
-                    #print("T", T[i, j * 3 + k] )
+                    T[i, j * 3 + k] = temp[k, j]
+    return newR, new_handles
 
 
 

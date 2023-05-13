@@ -1,29 +1,49 @@
-import taichi as ti
 import numpy as np
+import config
 
-#ti.init(arch=ti.cpu)
+if config.USE_TAICHI:
+    import taichi as ti
+    @ti.kernel
+    def pinvert_ti(V: ti.template(), h: ti.template(), weight: ti.template(), D: ti.template()):
+        n_vertices = V.shape[0]
+        n_handles = h.shape[0]
 
-@ti.kernel
-def pinvert(V: ti.template(), h: ti.template(), weight: ti.template(), D: ti.template()):
+        # Compute the distance between each vertex to each handle
+        for i in range(n_vertices):
+            for j in range(n_handles):
+                dist_sq = 0.0
+                for k in range(3):
+                    dist_sq += (V[i, k] - h[j, k]) ** 2
+                D[i, j] = ti.sqrt(dist_sq)
+
+        # Get the index of handles with min distance
+        for i in range(n_handles):
+            min_dist_idx = 0
+            for j in range(1, n_vertices):
+                if D[j, i] < D[min_dist_idx, i]:
+                    min_dist_idx = j
+            weight[i] = min_dist_idx
+
+
+def pinvert_np(V, h):
     n_vertices = V.shape[0]
     n_handles = h.shape[0]
-
+    weight = np.zeros(n_handles)
+    dists = np.zeros((n_vertices, n_handles))
     # Compute the distance between each vertex to each handle
     for i in range(n_vertices):
         for j in range(n_handles):
-            dist_sq = 0.0
-            for k in range(3):
-                dist_sq += (V[i, k] - h[j, k]) ** 2
-            D[i, j] = ti.sqrt(dist_sq)
+            dists[i, j] = np.linalg.norm(V[i] - h[j], ord=2)
 
     # Get the index of handles with min distance
     for i in range(n_handles):
         min_dist_idx = 0
         for j in range(1, n_vertices):
-            if D[j, i] < D[min_dist_idx, i]:
+            if dists[j, i] < dists[min_dist_idx, i]:
                 min_dist_idx = j
         weight[i] = min_dist_idx
 
+    return weight
 
 
 """

@@ -1,9 +1,7 @@
-import taichi as ti
 import igl
 import scipy
 import numpy as np
 import numpy.linalg as npla
-import cupy as cp
 import matplotlib.pyplot as plt
 import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
@@ -17,6 +15,11 @@ from time import time
 sys.path.append(r"..\barterlsBin")
 import bartelspy as bt
 import meshio
+# Hardcoding the config to use taichi to keep backwards compatibility
+import config
+config.USE_TAICHI = True
+start_init = time()
+import taichi as ti
 from def_grad3D import *
 from linear_tet3dmesh_arap_ds2 import *
 from linear_tet3dmesh_arap_ds import *
@@ -30,23 +33,28 @@ from igl2bart import *
 from compute_J import *
 from V_Cycle import *
 from fill_euler import *
+from GS import *
+
+end_init = time()
+
+print("Startup took {0} seconds".format(end_init - start_init))
 
 
 if __name__ == '__main__':
 
     # read beam model
-    # mesh = meshio.read("../data/beam.mesh")
+    mesh = meshio.read("../data/beam.mesh")
 
     # read human model
-    mesh = meshio.read("../data/output_mfem1.msh")
+    # mesh = meshio.read("../data/output_mfem1.msh")
 
     Vt = mesh.points
 
     # load beam tet
-    # Tt = mesh.cells[1].data.astype("int32")
+    Tt = mesh.cells[1].data.astype("int32")
 
     # load human tet
-    Tt = mesh.cells[0].data.astype("int32")
+    # Tt = mesh.cells[0].data.astype("int32")
 
     print("Reading data...")
     print("Vertices: ", len(Vt), Vt.shape)
@@ -62,30 +70,30 @@ if __name__ == '__main__':
     # making a skeleton
 
     # load human skeleton
-    handlest = scipy.io.loadmat('../data/handles.mat')
-    hiert = scipy.io.loadmat("../data/hierarchy.mat")
-    handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
-    hier = hiert['hierarchy'][:, 1]
+    # handlest = scipy.io.loadmat('../data/handles.mat')
+    # hiert = scipy.io.loadmat("../data/hierarchy.mat")
+    # handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
+    # hier = hiert['hierarchy'][:, 1]
 
     # make beam skeleton
-    # hier = np.array([0, 1, 2])
-    # handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
+    hier = np.array([0, 1, 2])
+    handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
 
     # level of beam
-    # b_levels = np.array([[30]]).astype(int)
+    b_levels = np.array([[30]]).astype(int)
 
     # level of human
-    b_levels = np.array([[50]]).astype(int)
+    # b_levels = np.array([[50]]).astype(int)
 
     l = b_levels.shape[0]
 
     # load beam samples
-    # py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-    # py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
+    py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
+    py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
 
     # load human samples
-    py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
-    py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
+    # py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
+    # py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
 
     # translate everything to taichi
     ti.init(arch=ti.cpu)
@@ -113,19 +121,23 @@ if __name__ == '__main__':
     tetAssignment(V, T, midpoints, fAssign)  # ti.kernel
 
     # beam eulers
-    # eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
     # eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
 
     # load human eulers
-    eulers = fill_euler(handles)
+    # eulers = fill_euler(handles)
 
     n_newR = handles.shape[0] - 1
     Tdummy = np.zeros((n_newR + 1, 9))
     newR = np.zeros((n_newR, 9))
     Tdummy[:, [0, 4, 8]] = 1
     newR[:, [0, 4, 8]] = 1
+
+    # We move the handles here, so let's consider that we start the sim from around this point
+    start_all_sim = time()
+
     new_handles = np.zeros_like(handles)
-    forward_kinematics(handles, hier, eulers, Tdummy, new_handles, newR)
+    forward_kinematics_ti(handles, hier, eulers, Tdummy, new_handles, newR)
     rows_T = Tt.shape[0]
     py_fAssign = fAssign.to_numpy()
     R = np.zeros((rows_T, 9))
@@ -145,7 +157,7 @@ if __name__ == '__main__':
     H.from_numpy(Ht)
     V = ti.field(ti.f32, shape=(Vt.shape[0], 3))
     V.from_numpy(Vt)
-    pinvert(V, H, vAssign, Dt)  # ti.kernel
+    pinvert_ti(V, H, vAssign, Dt)  # ti.kernel
 
     I = np.eye(3)
     q = igl2bart(Vt)
@@ -219,11 +231,12 @@ if __name__ == '__main__':
         # itr = itr + 1
         print("error: ", normVal)
 
+    end_all_sim = time()
+
     # sol = spsolve(A, b)
     print(npla.norm(b - A.dot(sol)))
     print(sol.shape)
-
-
+    print("The complete sim took {0} seconds.".format(end_all_sim-start_all_sim))
 
     # visualization
     ps.set_program_name("mfem")

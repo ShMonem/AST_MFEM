@@ -1,53 +1,52 @@
 import numpy as np
-import taichi as ti
-from scipy.sparse import kron, eye, find, csr_matrix, isspmatrix
+from scipy.sparse import kron, eye, csr_matrix
 from scipy.linalg import eigh
-import matplotlib.pyplot as plt
-## ----------------------------------------------------------
-from closest_index import *
-from GS import *
-## ----------------------------------------------------------
-#ti.init()
+import config
 
-def U_toTichi(Ut, A, Ub, UTAU,projA_solvers, NN):
-    ## Ut: list of numpy ndarrays
 
-    for l in range(len(Ut)):
+if config.USE_TAICHI:
+    import taichi as ti
+    from closest_index import closest_index
+    from GS import fill_U_Sparse, fill_tripletsSparse
+    def U_toTichi(Ut, A, Ub, UTAU,projA_solvers, NN):
+        ## Ut: list of numpy ndarrays
 
-        print(type(Ut[l]))
-        #print(isspmatrix(Ut[l]))
-        rows, cols = Ut[l].nonzero()
-        #U_l = ti.linalg.SparseMatrix(n=Ut[l].shape[0], m=Ut[l].shape[1], dtype=ti.f32)
-        #triplets_u_l = ti.Vector.ndarray(n=3, dtype=ti.f32, shape= rows.shape[0])
-        #fill_tripletsSparse(triplets_u_l, rows, cols, Ut[l].data)
-        #U_l.build_from_ndarray(triplets_u_l)
-        U_l = ti.field(dtype=ti.f32, shape=Ut[l].shape)
-        fill_U_Sparse(U_l, rows, cols, Ut[l].data)
-        Ub.append(U_l)  # basis list
-        #Ub_shapes.append(Ut[l].shape)
-        print("U_l filled")
+        for l in range(len(Ut)):
 
-        if l == 0:
-            UTAUt_l = csr_matrix(Ut[l].T @ A @ Ut[l] + NN)   # UTAU[i]
-        else:
-            UTAUt_l = csr_matrix(Ut[l].T @ UTAU[l-1] @ Ut[l]) # UTAU[i]
+            print(type(Ut[l]))
+            #print(isspmatrix(Ut[l]))
+            rows, cols = Ut[l].nonzero()
+            #U_l = ti.linalg.SparseMatrix(n=Ut[l].shape[0], m=Ut[l].shape[1], dtype=ti.f32)
+            #triplets_u_l = ti.Vector.ndarray(n=3, dtype=ti.f32, shape= rows.shape[0])
+            #fill_tripletsSparse(triplets_u_l, rows, cols, Ut[l].data)
+            #U_l.build_from_ndarray(triplets_u_l)
+            U_l = ti.field(dtype=ti.f32, shape=Ut[l].shape)
+            fill_U_Sparse(U_l, rows, cols, Ut[l].data)
+            Ub.append(U_l)  # basis list
+            #Ub_shapes.append(Ut[l].shape)
+            print("U_l filled")
 
-        UTAU_l = ti.linalg.SparseMatrix(n=UTAUt_l.shape[0], m=UTAUt_l.shape[1], dtype=ti.f32)
-        triplets_utau_l = ti.Vector.ndarray(n=3, dtype=ti.f32, shape= UTAUt_l.nnz)
+            if l == 0:
+                UTAUt_l = csr_matrix(Ut[l].T @ A @ Ut[l] + NN)   # UTAU[i]
+            else:
+                UTAUt_l = csr_matrix(Ut[l].T @ UTAU[l-1] @ Ut[l]) # UTAU[i]
 
-        rows_, cols_ = UTAUt_l.nonzero()
-        fill_tripletsSparse(triplets_utau_l, rows_, cols_, UTAUt_l.data,)
-        UTAU_l.build_from_ndarray(triplets_utau_l)
+            UTAU_l = ti.linalg.SparseMatrix(n=UTAUt_l.shape[0], m=UTAUt_l.shape[1], dtype=ti.f32)
+            triplets_utau_l = ti.Vector.ndarray(n=3, dtype=ti.f32, shape= UTAUt_l.nnz)
 
-        UTAU.append(UTAU_l) # projected basis list
-        print("UTAT_l filled")
-        #UTAU_shapes.append(UTAUt_l.shape)
+            rows_, cols_ = UTAUt_l.nonzero()
+            fill_tripletsSparse(triplets_utau_l, rows_, cols_, UTAUt_l.data,)
+            UTAU_l.build_from_ndarray(triplets_utau_l)
 
-        solver_l = ti.linalg.SparseSolver()
-        solver_l.compute(UTAU_l)
-        projA_solvers.append(solver_l)
+            UTAU.append(UTAU_l) # projected basis list
+            print("UTAT_l filled")
+            #UTAU_shapes.append(UTAUt_l.shape)
 
-def build_U(weight, b, l, P, V):
+            solver_l = ti.linalg.SparseSolver()
+            solver_l.compute(UTAU_l)
+            projA_solvers.append(solver_l)
+
+def build_U(weight, b, levels, P, V):
     # 2D or 3D
     dims = V.shape[1]
 
@@ -113,9 +112,10 @@ def build_U(weight, b, l, P, V):
 
 
     # if we have more than 1 level in MG ## TODO: ti.kernel
-    if l != 0:
+    if levels != 0:
         P_j = P
-        for j in range(1, l):
+        for j in range(1, levels):
+            print("IN THIS LOOP!")
             P_j = P_j[:b[0, j], :]
 
             ti_P_j = ti.Vector.field(3, dtype=ti.f32, shape=b[0, j])
