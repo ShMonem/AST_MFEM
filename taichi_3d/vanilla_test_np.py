@@ -23,7 +23,7 @@ import config
 
 if __name__ == '__main__':
     print("Reading data...")
-
+    start_data = time()
     ########## BEAM DATA ##############
     # read beam model
     mesh = meshio.read("../data/beam.mesh")
@@ -61,19 +61,26 @@ if __name__ == '__main__':
     # eulers = fill_euler(handles)
     ########## HUMAN DATA END ##############
 
+    end_data = time()
+    print("Done reading data...")
+    print("Reading data took {0} seconds.".format(end_data - start_data))
     print("Vertices: ", len(Vt), Vt.shape)
     print("Tets: ", len(Tt), Tt.shape)
 
+    print("Getting grad...")
     B = def_grad3D(Vt, Tt)
     mu = 100  # material properties
     k_bc = 10000  # stiffness
     s = np.zeros((6 * Tt.shape[0], 1))
+    print("Getting energy...")
     grad = linear_tet3dmesh_arap_ds(Vt, Tt, s, mu)
     hess = linear_tet3dmesh_arap_ds2(Vt, Tt, s, mu)
 
     l = b_levels.shape[0]
 
+    print("Computing closest index...")
     weight = closest_index_np(Vt, py_P)
+    print("Building the U matrix...")
     Ut, NN = build_U(weight, b_levels, l, py_P, Vt)
 
     midpoints_np = np.zeros((handles.shape[0] - 1, 3))
@@ -83,11 +90,13 @@ if __name__ == '__main__':
         else:
             midpoints_np[i - 1, :] = (handles[i, :] + handles[int(hier[i]) - 1, :]) / 2
 
+    print("Computing tet assignments...")
     fAssign = tetAssignment_py(Vt, Tt, midpoints_np)
 
     # We move the handles here, so let's consider that we start the sim from around this point
     start_all_sim = time()
 
+    print("Running FWD Kinematics...")
     newR, new_handles = forward_kinematics_np(handles, hier, eulers)
     rows_T = Tt.shape[0]
     R = np.zeros((rows_T, 9))
@@ -95,6 +104,7 @@ if __name__ == '__main__':
     for i in range(rows_T):
         R[i, :] = newR[int(fAssign[i]), :]
 
+    print("Getting the R_Mat...")
     R_mat_py = block_R3d(R)  # python function
 
     num_handles = handles.shape[0]
@@ -103,6 +113,7 @@ if __name__ == '__main__':
     Ht[:num_handles, :] = handles
     Ht[num_handles:, :] = midpoints_np
 
+    print("Computing the pinned verts...")
     vAssign = pinvert_np(Vt, Ht)
     I = np.eye(3)
     q = igl2bart(Vt)
@@ -153,19 +164,43 @@ if __name__ == '__main__':
     itr_num = 3
     l = len(Ut) - 1
     U, L = A_L_sum_U_np(A)  # python
-    while normVal > tol:
-        sol_old = sol
-        start = time()
-        sol = v_cycle_py(A, U, L, b, UTAU, Ut, l, itr_num, sol_old)
-        normVal = np.linalg.norm(b - A.dot(sol))
-        end = time()
-        print('V_cycle, itr', itr, 'in ', round(end - start, 3), 's')
-        print("error: ", normVal)
-
+    print("Starting the multigrid solve...")
+    if config.USE_CUPY:
+        print("Running the CuPy MG solver...")
+        import cupy as cp
+        import cupyx as cpx
+        from gs_cp import A_L_sum_U_cp
+        from v_cycle_cp import v_cycle_cp
+        # convert the elements we will use to cupy and thus send to the GPU
+        sol_cp = cp.asarray(sol)
+        A_cp = cpx.scipy.sparse.csr_matrix(A)
+        U_cp, L_cp = A_L_sum_U_cp(A_cp)
+        b_cp = cp.asarray(b)
+        UTAU_cp = [cpx.scipy.sparse.csc_matrix(u_m) for u_m in UTAU]
+        Ut_cp = [cpx.scipy.sparse.csr_matrix(u_m) for u_m in Ut]
+        start_mg = time()
+        while normVal > tol:
+            sol_old_cp = sol_cp
+            sol_cp = v_cycle_cp(A_cp, U_cp, L_cp, b_cp, UTAU_cp, Ut_cp, l, itr_num, sol_old_cp, debug=False)
+            normVal = np.linalg.norm(b_cp - A_cp.dot(sol_cp))
+            print("error: ", normVal)
+        sol = cp.asnumpy(sol_cp)
+    else:
+        print("Running the NumPy MG solver...")
+        start_mg = time()
+        while normVal > tol:
+            sol_old = sol
+            # start = time()
+            sol = v_cycle_py(A, U, L, b, UTAU, Ut, l, itr_num, sol_old, debug=False)
+            normVal = np.linalg.norm(b - A.dot(sol))
+            # end = time()
+            # print('V_cycle, itr', itr, 'in ', round(end - start, 3), 's')
+            print("error: ", normVal)
+    print("Finished the multigrid solve")
     end_all_sim = time()
-
     print(np.linalg.norm(b - A.dot(sol)))
     print(sol.shape)
+    print("The multigrid solve took {0} seconds.".format(end_all_sim-start_mg))
     print("The complete sim took {0} seconds.".format(end_all_sim - start_all_sim))
 
     # visualization
