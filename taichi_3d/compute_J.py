@@ -1,58 +1,39 @@
-import cupy as cp
 from time import time
 import numpy as np
-from scipy.sparse.linalg import svds, lsqr, spsolve
+from scipy.sparse.linalg import lsqr
 from scipy.sparse import lil_matrix
 
-import taichi as ti
 
-#ti.init(arch=ti.cpu)   # Initialize Taichi
-
-#@ti.kernel  ## TODO
-def compute_J_as_blocks(R_mat: ti.types.ndarray(), B: ti.types.ndarray(), blockSize=(9,6)) -> ti.types.ndarray():
-    bs0 = blockSize[0]
-    bs1 = blockSize[1]
-    n = R_mat.shape[0] // bs0
-    #print("tet size confirm: ", n)
-    J = lil_matrix((R_mat.shape[1], B.shape[1]))
-    for k in range(n):
-        for r in range(B.shape[1]):
-            b = np.squeeze(np.asarray(B[bs0*k: bs0*(k+1),r].todense()))
-            J[bs1*k: bs1*(k+1), r], istop, itn, r1norm = lsqr(R_mat[ bs0*k: bs0*(k+1), bs1*k: bs1*(k+1)], b, iter_lim =4)[:4]   ## lsqr cannot be called inside a ti scope
-
-        #print(k, "termination reason: ", istop, "itr num: ", itn, "error: ", r1norm)
-    return J
-
-def compute_J(R_mat: ti.types.ndarray(), B: ti.types.ndarray(), blockSize=(9,6)) -> ti.types.ndarray():
-    bs0 = blockSize[0]
-    bs1 = blockSize[1]
-    n = R_mat.shape[0] // bs0
-    #print("tet size confirm: ", n)
-    J = lil_matrix((R_mat.shape[1], B.shape[1]))
-    
-    for r in range(B.shape[1]):
-        b = np.squeeze(np.asarray(B[:,r].todense()))
-        J[:, r], istop, itn, r1norm = lsqr(R_mat, b, iter_lim =4)[:4]   ## lsqr cannot be called inside a ti scope
-
-        #print(r, "termination reason: ", istop, "itr num: ", itn, "error: ", r1norm)
-        #print(r)
-    return J
-
-
-def compute_J(R_mat: ti.types.ndarray(), B: ti.types.ndarray(), blockSize=(9, 6)) -> ti.types.ndarray():
+def compute_J_as_blocks(R_mat, B, blockSize=(9, 6)):
     bs0 = blockSize[0]
     bs1 = blockSize[1]
     n = R_mat.shape[0] // bs0
     # print("tet size confirm: ", n)
     J = lil_matrix((R_mat.shape[1], B.shape[1]))
+    for k in range(n):
+        for r in range(B.shape[1]):
+            b = np.squeeze(np.asarray(B[bs0*k: bs0*(k+1),r].todense()))
+            J[bs1*k: bs1*(k+1), r], istop, itn, r1norm = lsqr(R_mat[ bs0*k: bs0*(k+1), bs1*k: bs1*(k+1)], b,
+                                                              iter_lim=4)[:4]  # lsqr cannot be called inside a ti scope
+        # print(k, "termination reason: ", istop, "itr num: ", itn, "error: ", r1norm)
+    return J
 
+
+def compute_J(R_mat, B, blockSize=(9,6)):
+    bs0 = blockSize[0]
+    bs1 = blockSize[1]
+    n = R_mat.shape[0] // bs0
+    # print("tet size confirm: ", n)
+    J = lil_matrix((R_mat.shape[1], B.shape[1]))
+    
     for r in range(B.shape[1]):
-        b = np.squeeze(np.asarray(B[:, r].todense()))
-        J[:, r], istop, itn, r1norm = lsqr(R_mat, b, iter_lim=4)[:4]  ## lsqr cannot be called inside a ti scope
+        b = np.squeeze(np.asarray(B[:,r].todense()))
+        J[:, r], istop, itn, r1norm = lsqr(R_mat, b, iter_lim =4)[:4]  # lsqr cannot be called inside a ti scope
 
         # print(r, "termination reason: ", istop, "itr num: ", itn, "error: ", r1norm)
         # print(r)
     return J
+
 
 def compute_J_SVD(r_mat, b, block_size=(9, 6), use_cupy=False):
     m, n = block_size
@@ -61,6 +42,7 @@ def compute_J_SVD(r_mat, b, block_size=(9, 6), use_cupy=False):
     r_blocks_np = r_blocks_np.reshape((-1, m, n))
     block_out_inv_np = lil_matrix((r_mat.shape[1], r_mat.shape[0]))
     if use_cupy:
+        import cupy as cp
         start_tr = time()
         r_blocks_cu = cp.asarray(r_blocks_np)
         end_tr = time()
@@ -104,9 +86,6 @@ def compute_J_SVD(r_mat, b, block_size=(9, 6), use_cupy=False):
     start_set_sparse = time()
     for bl in range(r_blocks_np.shape[0]):
         block_out_inv_np[bl * n : (bl+1) * n, bl * m : (bl+1) * m] = out_inv_np[bl]
-        # for i in range(n):
-        #     for j in range(m):
-        #         block_out_inv_np[bl * n + i, bl * m + j] = out_inv_np[bl][i][j]
     end_set_sparse = time()
     print("Setting the sparse output took {0} seconds".format(end_set_sparse - start_set_sparse))
     start_dot = time()
@@ -115,16 +94,6 @@ def compute_J_SVD(r_mat, b, block_size=(9, 6), use_cupy=False):
     print("Output multiply took {0} seconds".format(end_dot-start_dot))
     print("SVD and inverse compute time was {0} seconds".format(end-start))
     return output
-    # cu_r_blocks = cp.asarray(r_blocks)
-    # cu_sigma = cp.zeros((cu_r_blocks.shape[0], 6, 9))
-    # cu_svd = cp.linalg.svd(cu_r_blocks)
-    # for i in range(2998):
-    #     for j in range(6):
-    #         if output[1][i][j] > 0.0 or output[1][i][j] < 0.0:
-    #             cu_sigma[i][j, j] = 1.0 / output[1][i][j]
-    # cu_r_mat_inv = cp.matmul(cp.matmul(cu_svd[2].transpose((0, 2, 1)), cu_sigma), cu_svd[0].transpose((0, 2, 1)))
-    # np_r_mat_inv = cp.asnumpy(cu_r_mat_inv)
-
 
 
 def get_blocks(sparse_mtx, n_blocks, size_i, size_j):

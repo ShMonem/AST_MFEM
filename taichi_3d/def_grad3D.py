@@ -1,7 +1,6 @@
-
 #import bartels python bindings
 import sys
-sys.path.append("../../Bartels/python/build")
+sys.path.append(r"..\Bartels\python\build")
 import bartelspy as bt
 
 def def_grad3D(V, T):

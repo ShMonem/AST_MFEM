@@ -1,76 +1,78 @@
-import taichi as ti
 import numpy as np
-from scipy.sparse import kron, eye, find, csr_matrix
-from scipy.linalg import solve
 from scipy.sparse.linalg import spsolve
-# gauss_seidel_solver is a python function, and is defined in GS
-from GS import *
-from build_U import *
+from GS import gauss_seidel_np, A_L_sum_U_np
 from time import time
+import config
 
 
-placed_fields = False
+if config.USE_TAICHI:
+    import taichi as ti
+    from GS import gauss_seidel_ti, A_L_sum_U_ti
 
-@ti.kernel
-def compute_residual(A: ti.template(), b: ti.template(), x: ti.template(), r: ti.template()):
-    for i in range(A.shape[0]):
-        sum = 0.0
-        for j in range(A.shape[1]):
-            sum += A[i, j] * x[j]
-        r[i] = b[i] - sum
+    placed_fields = False
 
-@ti.kernel
-def update_sol_with_e(sol: ti.template(), U: ti.template(), e: ti.ext_arr()):
-    for i in range(sol.shape[0]):
-        sum = 0.0
-        for j in range(U.shape[1]):
-            sum += U[i, j] * e[j]
-        sol[i] += sum
-@ti.kernel
-def restrict(Ub_l: ti.template(), res: ti.template(), red_res: ti.template()):
-    ## Ub_l: ti.field
-    # project error to lower resolution grid
-    #red_res = Ub_l.transpose() @ res  ## works only wehen Ub_l is ti.linalg.SparseMatrix
-    for j in range(Ub_l.shape[1]):
-        sum = 0.0
-        for i in range(Ub_l.shape[0]):
-            sum += Ub_l[i, j] * res[i]
-        red_res[j] += sum
+    @ti.kernel
+    def compute_residual(A: ti.template(), b: ti.template(), x: ti.template(), r: ti.template()):
+        for i in range(A.shape[0]):
+            sum = 0.0
+            for j in range(A.shape[1]):
+                sum += A[i, j] * x[j]
+            r[i] = b[i] - sum
 
 
-def atom_add(x: ti.template(), y:ti.template()):
-    ti.atomic_add(x, y)
+    @ti.kernel
+    def update_sol_with_e(sol: ti.template(), U: ti.template(), e: ti.ext_arr()):
+        for i in range(sol.shape[0]):
+            sum = 0.0
+            for j in range(U.shape[1]):
+                sum += U[i, j] * e[j]
+            sol[i] += sum
 
-def v_cycle_ti(A_ti: ti.template(), b: ti.template(), UTAU, projA_solvers: ti.template(), Ub, l, \
-            U:  ti.template(), L_solver: ti.template,\
-                 itr: ti.i32, x_old: ti.template()):
-    
-    sol = gauss_seidel_ti(U, L_solver, b, x_old, itr, x_old)  ## at beginning x = x_old, x_old = x_old
-    
-    r = ti.field(dtype=ti.f32, shape=(A_ti.shape[0],))
-    compute_residual(A_ti, b, sol, r)
 
-    red_res= ti.field(dtype=ti.f32, shape=(Ub[l].shape[1],))
-    restrict(Ub[l], r, red_res)
-    
-    e = np.zeros(red_res.shape)
-    if l == (len(Ub) -1 ): # reached the last reduction matrix in the list
-        e = projA_solvers[l].solve(red_res)
-    else:
-        e = v_cycle(A_ti, b, UTAU, projA_solvers, Ub, l+1, \
-              U, L_solver, itr, x_old)
+    @ti.kernel
+    def restrict(Ub_l: ti.template(), res: ti.template(), red_res: ti.template()):
+        ## Ub_l: ti.field
+        # project error to lower resolution grid
+        #red_res = Ub_l.transpose() @ res  ## works only wehen Ub_l is ti.linalg.SparseMatrix
+        for j in range(Ub_l.shape[1]):
+            sum = 0.0
+            for i in range(Ub_l.shape[0]):
+                sum += Ub_l[i, j] * res[i]
+            red_res[j] += sum
 
-    update_sol_with_e(sol, Ub[l], e)
-   
-    if l == 0:
-        sol = gauss_seidel_ti(U, L_solver, b, sol, itr, x_old)
-    else:
-        sol = gauss_seidel_ti(UTAU[l], b, sol, itr, x_old)
-    return sol
+
+    def atom_add(x: ti.template(), y:ti.template()):
+        ti.atomic_add(x, y)
+
+
+    def v_cycle_ti(A_ti: ti.template(), b: ti.template(), UTAU, projA_solvers: ti.template(), Ub, l, \
+                   U: ti.template(), L_solver: ti.template, itr: ti.i32, x_old: ti.template()):
+
+        sol = gauss_seidel_ti(U, L_solver, b, x_old, itr, x_old)  ## at beginning x = x_old, x_old = x_old
+
+        r = ti.field(dtype=ti.f32, shape=(A_ti.shape[0],))
+        compute_residual(A_ti, b, sol, r)
+
+        red_res= ti.field(dtype=ti.f32, shape=(Ub[l].shape[1],))
+        restrict(Ub[l], r, red_res)
+
+        e = np.zeros(red_res.shape)
+        if l == (len(Ub) -1 ): # reached the last reduction matrix in the list
+            e = projA_solvers[l].solve(red_res)
+        else:
+            e = v_cycle_ti(A_ti, b, UTAU, projA_solvers, Ub, l+1, U, L_solver, itr, x_old)
+
+        update_sol_with_e(sol, Ub[l], e)
+
+        if l == 0:
+            sol = gauss_seidel_ti(U, L_solver, b, sol, itr, x_old)
+        else:
+            sol = gauss_seidel_ti(UTAU[l], b, sol, itr, x_old)
+        return sol
 
 def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
     start = time()
-    sol = gauss_seidel_py(U, L, b, itr, x_init)
+    sol = gauss_seidel_np(U, L, b, itr, x_init)
     end = time()
     print("GS took {0} seconds".format(end-start))
 
@@ -89,15 +91,16 @@ def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
 
     sol = sol + Ub[l].dot(e)
     if l == 0:
-        sol = gauss_seidel_py( U, L, b, itr, sol)
+        sol = gauss_seidel_np( U, L, b, itr, sol)
     else:
-        U_utau , L_utau = A_L_sum_U_py(UTAU[l])
-        sol = gauss_seidel_py(U_utau , L_utau, b, itr, sol)
+        U_utau , L_utau = A_L_sum_U_np(UTAU[l])
+        sol = gauss_seidel_np(U_utau , L_utau, b, itr, sol)
     return sol
 
 """
 
 # Example usage:
+from build_U import *
 A = np.array([[10, -1, 0, 0], [-1, 4, -18, 0], [5, -1, 42, -1], [0, 0, -1, 3]], dtype=np.float32)
 b = np.array([15, 10, 10, 10], dtype=np.float32)
 sol_init = np.array([0, 0, 0, 0], dtype=np.float32)
