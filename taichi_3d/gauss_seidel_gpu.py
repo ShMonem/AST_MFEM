@@ -138,32 +138,32 @@ def fill_neighbors(A: ti.template(), adj: ti.types.sparse_matrix_builder()):
 
 # @ti.func
 def gauss_seidel_solve(A, b, max_iter, partitions):
-    # x = ti.field(ti.f32, shape=A.shape[0])
-    x = np.zeros(A.shape[1])
+    x = ti.field(ti.f32, shape=A.shape[0])
+    # x = np.zeros(A.shape[1])
     for i in range(max_iter):
         for part in partitions:
             # ti_part = ti.field(ti.f32, shape=len(part))
             # ti_part.from_numpy(np.array(part))
-            partition_solve_py(A, b, x, part)
+            partition_solve(A, b, x, np.array(part))
 
     return x
 
 
 @ti.kernel
-def partition_solve(A: ti.template(), b: ti.template(), x: ti.template(), partitions: ti.template()):
+def partition_solve(A: ti.template(), b: ti.template(), x: ti.template(), partitions: ti.types.ndarray()):
     for i in partitions:
         temp = 0.0
         for j in range(A.shape[1]):
-            if j != i:
-                temp += A[i, j] * x[j]
-        x[i] = (1.0 / A[i, i]) * (b[i] - temp)
+            if j != partitions[i]:
+                temp += A[partitions[i], j] * x[j]
+        x[partitions[i]] = (1.0 / A[partitions[i], partitions[i]]) * (b[partitions[i]] - temp)
 
 
 def partition_solve_py(A, b, x, partition):
     for i in partition:
         temp = 0
         for j in range(A.shape[1]):
-            if i!=j:
+            if i != j:
                 temp += A[i, j] * x[j]
         x[i] = (1.0 / A[i, i]) * (b[i] - temp)
 
@@ -180,15 +180,14 @@ if __name__ == '__main__':
                   [3, 0, 0, 0, 8, 0, 0, 11, 0, 0],
                   [0, 0, 3, 9, 0, 0, 6, 0, 18, 0],
                   [0, 0, 0, 0, 3, 8, 0, 0, 0, 11]])
-    # A = ti.field(ti.f32, shape=(a.shape[0], a.shape[1]))
-    # A.from_numpy(a)
+    A = ti.field(ti.f32, shape=(a.shape[0], a.shape[1]))
+    A.from_numpy(a)
     B = np.array([4, 6, 2, 7, 3, 8, 23, 2, 5, 34])
-    # b = ti.field(ti.f32, shape=B.shape[0])
-    # b.from_numpy(B)
+    b = ti.field(ti.f32, shape=B.shape[0])
+    b.from_numpy(B)
 
     partitions = randomized_graph_coloring(a)
     print(partitions)
-    x = gauss_seidel_solve(a, B, 1000, partitions)
+    x = gauss_seidel_solve(A, b, 200, partitions)
     print(x)
     # print(neighbors)
-
