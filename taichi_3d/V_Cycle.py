@@ -70,11 +70,12 @@ if config.USE_TAICHI:
             sol = gauss_seidel_ti(UTAU[l], b, sol, itr, x_old)
         return sol
 
-def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
+def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init, debug=False):
     start = time()
     sol = gauss_seidel_np(U, L, b, itr, x_init)
     end = time()
-    print("GS took {0} seconds".format(end-start))
+    if debug:
+        print("GS took {0} seconds".format(end-start))
 
     # compute residual
     r = b - A.dot(sol)
@@ -85,7 +86,8 @@ def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
         start = time()
         e = spsolve(UTAU[l], red_res)
         end = time()
-        print("SPSolve took {0} seconds".format(end-start))
+        if debug:
+            print("SPSolve took {0} seconds".format(end-start))
     else:
         e = v_cycle_py(A, U, L, b, UTAU, Ub, l+1, itr, e)
 

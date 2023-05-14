@@ -18,7 +18,6 @@ import meshio
 # Hardcoding the config to use taichi to keep backwards compatibility
 import config
 config.USE_TAICHI = True
-start_init = time()
 import taichi as ti
 from def_grad3D import *
 from linear_tet3dmesh_arap_ds2 import *
@@ -35,28 +34,50 @@ from V_Cycle import *
 from fill_euler import *
 from GS import *
 
-end_init = time()
-
-print("Startup took {0} seconds".format(end_init - start_init))
-
 
 if __name__ == '__main__':
-
-    # read beam model
-    mesh = meshio.read("../data/beam.mesh")
-
-    # read human model
-    # mesh = meshio.read("../data/output_mfem1.msh")
-
-    Vt = mesh.points
-
-    # load beam tet
-    Tt = mesh.cells[1].data.astype("int32")
-
-    # load human tet
-    # Tt = mesh.cells[0].data.astype("int32")
-
     print("Reading data...")
+    start_data = time()
+    ########## BEAM DATA ##############
+    # # read beam model
+    # mesh = meshio.read("../data/beam.mesh")
+    # Vt = mesh.points
+    # Tt = mesh.cells[1].data.astype("int32")
+    # # make beam skeleton
+    # hier = np.array([0, 1, 2])
+    # handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
+    # # level of beam
+    # b_levels = np.array([[30]]).astype(int)
+    # # load beam samples
+    # py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
+    # py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
+    # # beam eulers
+    # eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    # # eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
+    ########## BEAM DATA END ##############
+
+    ########## HUMAN DATA ##############
+    # read human model
+    mesh = meshio.read("../data/output_mfem1.msh")
+    Vt = mesh.points
+    Tt = mesh.cells[0].data.astype("int32")
+    # load human skeleton
+    handlest = scipy.io.loadmat('../data/handles.mat')
+    hiert = scipy.io.loadmat("../data/hierarchy.mat")
+    handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
+    hier = hiert['hierarchy'][:, 1]
+    # level of human
+    b_levels = np.array([[50]]).astype(int)
+    # load human samples
+    py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
+    py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
+    # load human eulers
+    eulers = fill_euler(handles)
+    ########## HUMAN DATA END ##############
+
+    end_data = time()
+    print("Done reading data...")
+    print("Reading data took {0} seconds.".format(end_data - start_data))
     print("Vertices: ", len(Vt), Vt.shape)
     print("Tets: ", len(Tt), Tt.shape)
 
@@ -67,33 +88,7 @@ if __name__ == '__main__':
     grad = linear_tet3dmesh_arap_ds(Vt, Tt, s, mu)
     hess = linear_tet3dmesh_arap_ds2(Vt, Tt, s, mu)
 
-    # making a skeleton
-
-    # load human skeleton
-    # handlest = scipy.io.loadmat('../data/handles.mat')
-    # hiert = scipy.io.loadmat("../data/hierarchy.mat")
-    # handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
-    # hier = hiert['hierarchy'][:, 1]
-
-    # make beam skeleton
-    hier = np.array([0, 1, 2])
-    handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
-
-    # level of beam
-    b_levels = np.array([[30]]).astype(int)
-
-    # level of human
-    # b_levels = np.array([[50]]).astype(int)
-
     l = b_levels.shape[0]
-
-    # load beam samples
-    py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-    py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
-
-    # load human samples
-    # py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
-    # py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
 
     # translate everything to taichi
     ti.init(arch=ti.cpu)
@@ -119,13 +114,6 @@ if __name__ == '__main__':
 
     fAssign = ti.field(dtype=ti.i32, shape=Tt.shape[0])
     tetAssignment(V, T, midpoints, fAssign)  # ti.kernel
-
-    # beam eulers
-    eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
-    # eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
-
-    # load human eulers
-    # eulers = fill_euler(handles)
 
     n_newR = handles.shape[0] - 1
     Tdummy = np.zeros((n_newR + 1, 9))
@@ -219,6 +207,8 @@ if __name__ == '__main__':
     itr_num = 3
     l = len(Ut) - 1
     U_field, U, L = A_L_sum_U_py(A)  # python
+    print("Starting the multigrid solve...")
+    start_mg = time()
     while normVal > tol:
         sol_old = sol
         start = time()
@@ -226,16 +216,15 @@ if __name__ == '__main__':
         sol = v_cycle_py(A, U, L, b, UTAU, Ut, l, itr_num, sol_old)
         normVal = npla.norm(b - A.dot(sol))
         end = time()
-        print('V_cycle, itr', itr, 'in ', round(end - start, 3), 's')
+        # print('V_cycle, itr', itr, 'in ', round(end - start, 3), 's')
         # normVal = npla.norm(sol - sol_old)
         # itr = itr + 1
         print("error: ", normVal)
-
     end_all_sim = time()
-
     # sol = spsolve(A, b)
     print(npla.norm(b - A.dot(sol)))
     print(sol.shape)
+    print("The multigrid solve took {0} seconds.".format(end_all_sim - start_mg))
     print("The complete sim took {0} seconds.".format(end_all_sim-start_all_sim))
 
     # visualization
