@@ -34,7 +34,7 @@ from compute_J import *
 from V_Cycle import *
 from fill_euler import *
 from GS import *
-
+from sampling3d import *
 end_init = time()
 
 print("Startup took {0} seconds".format(end_init - start_init))
@@ -43,18 +43,18 @@ print("Startup took {0} seconds".format(end_init - start_init))
 if __name__ == '__main__':
 
     # read beam model
-    mesh = meshio.read("../data/beam.mesh")
+    #mesh = meshio.read("../data/beam.mesh")
 
     # read human model
-    # mesh = meshio.read("../data/output_mfem1.msh")
+    mesh = meshio.read("../data/output_mfem1.msh")
 
     Vt = mesh.points
 
     # load beam tet
-    Tt = mesh.cells[1].data.astype("int32")
+    #Tt = mesh.cells[1].data.astype("int32")
 
     # load human tet
-    # Tt = mesh.cells[0].data.astype("int32")
+    Tt = mesh.cells[0].data.astype("int32")
 
     print("Reading data...")
     print("Vertices: ", len(Vt), Vt.shape)
@@ -87,10 +87,13 @@ if __name__ == '__main__':
 
     l = b_levels.shape[0]
 
+    start_j = time()
+    py_P, py_PI = sampling3d(Tt, Vt, b_levels[0,0])
+    end_j = time()
+    print("sampling in {0} seconds".format(end_j - start_j))
     # load beam samples
-    py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-    py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
-
+    #py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
+    #py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']  ## no need to load it
     # load human samples
     # py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
     # py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
