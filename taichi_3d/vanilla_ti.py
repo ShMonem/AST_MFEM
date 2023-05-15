@@ -13,6 +13,8 @@ from block_R3d import block_R3d
 from pinvert import pinvert_np
 from igl2bart import igl2bart
 from compute_J import compute_J_SVD, compute_J
+from linear_tet3dmesh_arap_ds2 import linear_tet3dmesh_arap_ds2
+from linear_tet3dmesh_arap_ds import linear_tet3dmesh_arap_ds
 from V_Cycle import v_cycle_py
 from GS import A_L_sum_U_np
 from fill_euler import fill_euler
@@ -27,36 +29,56 @@ class MaterialModel(Enum):
 
 @ti.data_oriented
 class MFEMSolver:
-    def __init__(self, model_file, skeleton_file, hierarchy_file, mu, levels):
-        self.levels = ti.ndarray(dtype=ti.int32, shape=(levels.shape[0]))
-        self.levels.from_numpy(levels)
+    def __init__(self, V, T, mu, k, layers, num_pinned):
+        self.levels = ti.field(dtype=ti.int32, shape=(layers.shape[0], layers.shape[1]))
+        self.levels.from_numpy(layers)
+
         self.material_model = MaterialModel.arap
+
         self.mu = mu
-        mesh = meshio.read(model_file)
-        self.V = ti.Vector.field(3, dtype=ti.f32, shape=(mesh.points.shape[0],))
-        self.V.from_numpy(mesh.points)
-        self.num_V = self.V.shape[0]
-        self.T = ti.Vector.field(4, dtype=int, shape=(mesh.cells[1].data.shape[0]))
-        self.T.from_numpy(mesh.cells[1].data)
-        self.num_T = self.T.shape[0]
-        bone_hierarchy_np = np.load(hierarchy_file)
-        self.num_bone = bone_hierarchy_np.shape[0]
-        self.bone_hierarchy = ti.field(dtype=int, shape=self.num_bone)
-        self.bone_hierarchy.from_numpy(bone_hierarchy_np)
-        skeleton_np = np.load(skeleton_file)
-        self.num_skeleton = skeleton_np.shape[0]
-        self.skeleton = ti.Vector.field(3, dtype=ti.f32, shape=(self.num_skeleton,))
-        self.skeleton.from_numpy(skeleton_np)
-        self.eulers = ti.Vector.field(3, dtype=ti.f32, shape=(self.num_skeleton,))
-        self.Hessian = ti.field(ti.f32, shape=(self.num_T * 6, self.num_T * 6))
-        self.fill_Hessian()
+        self.k = k
+
+        self.num_V = V.shape[0]
+        self.num_T = T.shape[0]
+        self.num_pinned = num_pinned
+
+        # mesh = meshio.read(model_file)
+        # self.V = ti.Vector.field(3, dtype=ti.f32, shape=(mesh.points.shape[0],))
+        # self.V.from_numpy(mesh.points)
+        # self.num_V = self.V.shape[0]
+        # self.T = ti.Vector.field(4, dtype=int, shape=(mesh.cells[1].data.shape[0]))
+        # self.T.from_numpy(mesh.cells[1].data)
+        # self.num_T = self.T.shape[0]
+
+        # closest_index_np(mesh.points, P)
+
+        # bone_hierarchy_np = np.load(hierarchy_file)
+        # self.num_bone = bone_hierarchy_np.shape[0]
+        # self.bone_hierarchy = ti.field(dtype=int, shape=self.num_bone)
+        # self.bone_hierarchy.from_numpy(bone_hierarchy_np)
+        # skeleton_np = np.load(skeleton_file)
+        # self.num_skeleton = skeleton_np.shape[0]
+        # self.skeleton = ti.Vector.field(3, dtype=ti.f32, shape=(self.num_skeleton,))
+        # self.skeleton.from_numpy(skeleton_np)
+
+        # self.eulers = ti.Vector.field(3, dtype=ti.f32, shape=(self.num_skeleton,))
+
+        L = ti.linalg.SparseMatrixBuilder(self.num_T * 6, self.num_T * 6, max_num_triplets=self.num_T * 6)
+        self.fill_Hessian(L)
+        self.Hessian = L.build()
+        # print(self.Hessian)
+
         self.Grad = ti.field(ti.f32, shape=(self.num_T * 6,))
         self.fill_Grad()
-        B_np = def_grad3D(mesh.points, mesh.cells[1].data.astype("int32")).tocoo()
+        # print(self.Grad)
+
+        B_np = def_grad3D(V, T).tocoo()
         K = ti.linalg.SparseMatrixBuilder(9 * self.num_T, 3 * self.num_V, max_num_triplets=B_np.col.shape[0])
-        self.fill_B(K, B_np.row, B_np.col, B_np.data)
+        self.fill_sparse_extern(K, B_np.row, B_np.col, B_np.data)
         self.B = K.build()
 
+        self.Rinv = ti.linalg.SparseMatrix(9 * self.num_T, 6 * self.num_T, dtype=ti.f32)
+        self.pinned_mat = ti.linalg.SparseMatrix(num_pinned, 3 * self.num_V, dtype=ti.f32)
 
     @ti.kernel
     def fill_eulers(self, eus: ti.types.ndarray(dtype=ti.math.vec3, ndim=1)):
@@ -64,15 +86,15 @@ class MFEMSolver:
             self.eulers[i] = ti.Vector([eus[i][0], eus[i][1], eus[i][2]])
 
     @ti.kernel
-    def fill_Hessian(self):
+    def fill_Hessian(self, L: ti.types.sparse_matrix_builder()):
         for i in range(self.num_T):
             if self.material_model == MaterialModel.arap:
-                self.Hessian[6 * i, 6 * i] = 2 * self.mu * 1
-                self.Hessian[6 * i + 1, 6 * i + 1] = 2 * self.mu * 1
-                self.Hessian[6 * i + 2, 6 * i + 2] = 2 * self.mu * 1
-                self.Hessian[6 * i + 3, 6 * i + 3] = 2 * self.mu * 2
-                self.Hessian[6 * i + 4, 6 * i + 4] = 2 * self.mu * 2
-                self.Hessian[6 * i + 5, 6 * i + 5] = 2 * self.mu * 2
+                L[6 * i, 6 * i] += 2 * self.mu * 1
+                L[6 * i + 1, 6 * i + 1] += 2 * self.mu * 1
+                L[6 * i + 2, 6 * i + 2] += 2 * self.mu * 1
+                L[6 * i + 3, 6 * i + 3] += 2 * self.mu * 2
+                L[6 * i + 4, 6 * i + 4] += 2 * self.mu * 2
+                L[6 * i + 5, 6 * i + 5] += 2 * self.mu * 2
 
     @ti.kernel
     def fill_Grad(self):
@@ -86,150 +108,192 @@ class MFEMSolver:
                 self.Grad[6 * i + 5] = 0
 
     @ti.kernel
-    def fill_B(self, K: ti.types.sparse_matrix_builder(), row: ti.types.ndarray(), col: ti.types.ndarray(), val: ti.types.ndarray()):
+    def fill_sparse_extern(self, K: ti.types.sparse_matrix_builder(), row: ti.types.ndarray(), col: ti.types.ndarray(),
+                           val: ti.types.ndarray()):
         for i in range(col.shape[0]):
             K[row[i], col[i]] += val[i]
 
+    def load_Rinv(self, row: ti.types.ndarray(), col: ti.types.ndarray(), val: ti.types.ndarray()):
+        K = ti.linalg.SparseMatrixBuilder(6 * self.num_T, 9 * self.num_T, max_num_triplets=row.shape[0])
+        self.fill_sparse_extern(K, row, col, val)
+        self.Rinv = K.build()
+
+    def load_pinned_mat(self, row: ti.types.ndarray(), col: ti.types.ndarray(), val: ti.types.ndarray()):
+        K = ti.linalg.SparseMatrixBuilder(self.num_pinned, 3 * self.num_V, max_num_triplets=row.shape[0])
+        self.fill_sparse_extern(K, row, col, val)
+        self.pinned_mat = K.build()
+
+    def do_something(self):
+        print(self.pinned_mat)
+
 
 if __name__ == '__main__':
-    ti.init(arch=ti.cpu)
-    levels = np.array([30])
-    mfem = MFEMSolver(config.MODEL_PATH,
-                      config.SKELETON_PATH,
-                      config.HIERARCHY_PATH,
-                      config.MU,
-                      levels)
-    # print(mfem.B[0, 9151])
+    print("Reading data...")
+    start_data = time()
+    ########## BEAM DATA ##############
+    # read beam model
+    mesh = meshio.read("../data/beam.mesh")
+    Vt = mesh.points
+    print(mesh.points.shape[0])
+    print(mesh.cells[1].data.shape[0])
+    Tt = mesh.cells[1].data.astype("int32")
+    # make beam skeleton
+    hier = np.array([0, 1, 2])
+    handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
+    # level of beam
+    b_levels = np.array([[30]]).astype(int)
+    # load beam samples
+    py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
+    py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
+    # beam eulers
+    eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 1.5, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    # eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
+    ########## BEAM DATA END ##############
 
-# if __name__ == '__main__':
-#     print("Reading data...")
-#     start_data = time()
-#     ########## BEAM DATA ##############
-#     # read beam model
-#     mesh = meshio.read("../data/beam.mesh")
-#     Vt = mesh.points
-#     print(mesh.points.shape[0])
-#     print(mesh.cells[1].data.shape[0])
-#     Tt = mesh.cells[1].data.astype("int32")
-#     # make beam skeleton
-#     hier = np.array([0, 1, 2])
-#     handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
-#     # level of beam
-#     b_levels = np.array([[30]]).astype(int)
-#     # load beam samples
-#     py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-#     py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
-#     # beam eulers
-#     eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
-#     # eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
-#     ########## BEAM DATA END ##############
-#
-#     ########## HUMAN DATA ##############
-#     # # read human model
-#     # mesh = meshio.read("../data/output_mfem1.msh")
-#     # Vt = mesh.points
-#     # Tt = mesh.cells[0].data.astype("int32")
-#     # # load human skeleton
-#     # handlest = scipy.io.loadmat('../data/handles.mat')
-#     # hiert = scipy.io.loadmat("../data/hierarchy.mat")
-#     # handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
-#     # hier = hiert['hierarchy'][:, 1]
-#     # # level of human
-#     # b_levels = np.array([[50]]).astype(int)
-#     # # load human samples
-#     # py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
-#     # py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
-#     # # load human eulers
-#     # eulers = fill_euler(handles)
-#     ########## HUMAN DATA END ##############
-#
-#     end_data = time()
-#     print("Done reading data...")
-#     print("Reading data took {0} seconds.".format(end_data - start_data))
-#     print("Vertices: ", len(Vt), Vt.shape)
-#     print("Tets: ", len(Tt), Tt.shape)
-#
-#     print("Getting grad...")
-#     B = def_grad3D(Vt, Tt)
-#     mu = 100  # material properties
-#     k_bc = 10000  # stiffness
-#     s = np.zeros((6 * Tt.shape[0], 1))
-#     print("Getting energy...")
-#     grad = linear_tet3dmesh_arap_ds(Vt, Tt, s, mu)
-#     hess = linear_tet3dmesh_arap_ds2(Vt, Tt, s, mu)
-#
-#     l = b_levels.shape[0]
-#
-#     print("Computing closest index...")
-#     weight = closest_index_np(Vt, py_P)
-#     print("Building the U matrix...")
-#     Ut, NN = build_U(weight, b_levels, l, py_P, Vt)
-#
-#     midpoints_np = np.zeros((handles.shape[0] - 1, 3))
-#     for i in range(handles.shape[0]):
-#         if hier[i] == 0:
-#             continue
-#         else:
-#             midpoints_np[i - 1, :] = (handles[i, :] + handles[int(hier[i]) - 1, :]) / 2
-#
-#     print("Computing tet assignments...")
-#     fAssign = tetAssignment_py(Vt, Tt, midpoints_np)
-#
-#     # We move the handles here, so let's consider that we start the sim from around this point
-#     start_all_sim = time()
-#
-#     print("Running FWD Kinematics...")
-#     newR, new_handles = forward_kinematics_np(handles, hier, eulers)
-#     rows_T = Tt.shape[0]
-#     R = np.zeros((rows_T, 9))
-#     # assigning rotations to each tet according to fAssign info
-#     for i in range(rows_T):
-#         R[i, :] = newR[int(fAssign[i]), :]
-#
-#     print("Getting the R_Mat...")
-#     R_mat_py = block_R3d(R)  # python function
-#
-#     num_handles = handles.shape[0]
-#     num_midpoints = midpoints_np.shape[0]
-#     Ht = np.zeros((num_handles + num_midpoints, 3))
-#     Ht[:num_handles, :] = handles
-#     Ht[num_handles:, :] = midpoints_np
-#
-#     print("Computing the pinned verts...")
-#     vAssign = pinvert_np(Vt, Ht)
-#     I = np.eye(3)
-#     q = igl2bart(Vt)
-#
-#     pinned_mat = sps.lil_matrix((3 * Ht.shape[0], 3 * Vt.shape[0]))
-#     for i in range(Ht.shape[0]):
-#         pinned_mat[3 * i:3 * (i + 1), 3 * int(vAssign[i]):3 * int(vAssign[i])+3] = I
-#
-#     midpoints = np.zeros((new_handles.shape[0] - 1, 3))
-#     for i in range(new_handles.shape[0]):
-#         if hier[i] == 0:
-#             continue
-#         else:
-#             midpoints[i - 1, :] = (new_handles[i, :] + new_handles[hier[i] - 1, :]) / 2
-#
-#     new_new_handles = np.zeros((new_handles.shape[0] + midpoints.shape[0], 3))
-#     new_new_handles[:new_handles.shape[0], :] = new_handles
-#     new_new_handles[new_handles.shape[0]:, :] = midpoints
-#
-#     pinned_b = igl2bart(new_new_handles)
-#
-#     nq = q.shape[0]
-#     ns = s.shape[0]
-#     nlambda = 9 * Tt.shape[0]
-#     start_j = time()
-#     if config.USE_SVD:
-#         J = compute_J_SVD(R_mat_py, B)  # cupy/numpy function
-#     else:
-#         J = compute_J(R_mat_py, B)
-#     end_j = time()
-#     print("J computed in {0} seconds".format(end_j-start_j))
-#     A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
-#     b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
-#     b = np.squeeze(b)
+    # ########## HUMAN DATA ##############
+    # # read human model
+    # mesh = meshio.read("../data/output_mfem1.msh")
+    # Vt = mesh.points
+    # Tt = mesh.cells[0].data.astype("int32")
+    # # load human skeleton
+    # handlest = scipy.io.loadmat('../data/handles.mat')
+    # hiert = scipy.io.loadmat("../data/hierarchy.mat")
+    # handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
+    # hier = hiert['hierarchy'][:, 1]
+    # # level of human
+    # b_levels = np.array([[50]]).astype(int)
+    # # load human samples
+    # py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
+    # py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
+    # # load human eulers
+    # eulers = fill_euler(handles)
+    # ########## HUMAN DATA END ##############
+    #
+    end_data = time()
+    print("Done reading data...")
+    print("Reading data took {0} seconds.".format(end_data - start_data))
+    print("Vertices: ", len(Vt), Vt.shape)
+    print("Tets: ", len(Tt), Tt.shape)
+
+    print("Getting grad...")
+    B = def_grad3D(Vt, Tt)
+    mu = 100  # material properties
+    k_bc = 10000  # stiffness
+    s = np.zeros((6 * Tt.shape[0], 1))
+    print("Getting energy...")
+    grad = linear_tet3dmesh_arap_ds(Vt, Tt, s, mu)
+    hess = linear_tet3dmesh_arap_ds2(Vt, Tt, s, mu)
+
+    l = b_levels.shape[0]
+
+    print("Computing closest index...")
+    weight = closest_index_np(Vt, py_P)
+    print("Building the U matrix...")
+    Ut, NN = build_U(weight, b_levels, l, py_P, Vt)
+
+    midpoints_np = np.zeros((handles.shape[0] - 1, 3))
+    for i in range(handles.shape[0]):
+        if hier[i] == 0:
+            continue
+        else:
+            midpoints_np[i - 1, :] = (handles[i, :] + handles[int(hier[i]) - 1, :]) / 2
+
+    print("Computing tet assignments...")
+    fAssign = tetAssignment_py(Vt, Tt, midpoints_np)
+
+    # We move the handles here, so let's consider that we start the sim from around this point
+    start_all_sim = time()
+
+    print("Running FWD Kinematics...")
+    newR, new_handles = forward_kinematics_np(handles, hier, eulers)
+    rows_T = Tt.shape[0]
+    R = np.zeros((rows_T, 9))
+    # assigning rotations to each tet according to fAssign info
+    for i in range(rows_T):
+        R[i, :] = newR[int(fAssign[i]), :]
+
+    print("Getting the R_Mat...")
+    R_mat_py = block_R3d(R)  # python function
+
+    num_handles = handles.shape[0]
+    num_midpoints = midpoints_np.shape[0]
+    Ht = np.zeros((num_handles + num_midpoints, 3))
+    Ht[:num_handles, :] = handles
+    Ht[num_handles:, :] = midpoints_np
+
+    print("Computing the pinned verts...")
+    vAssign = pinvert_np(Vt, Ht)
+    I = np.eye(3)
+    q = igl2bart(Vt)
+
+    pinned_mat = sps.lil_matrix((3 * Ht.shape[0], 3 * Vt.shape[0]))
+    for i in range(Ht.shape[0]):
+        pinned_mat[3 * i:3 * (i + 1), 3 * int(vAssign[i]):3 * int(vAssign[i]) + 3] = I
+
+    midpoints = np.zeros((new_handles.shape[0] - 1, 3))
+    for i in range(new_handles.shape[0]):
+        if hier[i] == 0:
+            continue
+        else:
+            midpoints[i - 1, :] = (new_handles[i, :] + new_handles[hier[i] - 1, :]) / 2
+
+    new_new_handles = np.zeros((new_handles.shape[0] + midpoints.shape[0], 3))
+    new_new_handles[:new_handles.shape[0], :] = new_handles
+    new_new_handles[new_handles.shape[0]:, :] = midpoints
+
+    pinned_b = igl2bart(new_new_handles)
+
+    nq = q.shape[0]
+    ns = s.shape[0]
+    nlambda = 9 * Tt.shape[0]
+    start_j = time()
+    if config.USE_SVD:
+        J, Rmatinv = compute_J_SVD(R_mat_py, B)  # cupy/numpy function
+    else:
+        J = compute_J(R_mat_py, B)
+    end_j = time()
+    print("J computed in {0} seconds".format(end_j - start_j))
+
+    ti.init(arch=ti.cpu)
+    # Rmatinvcoo = Rmatinv.tocoo()
+    # pinned_matcoo = pinned_mat.tocoo()
+    # mfem = MFEMSolver(Vt, Tt, config.MU, k_bc, b_levels, pinned_matcoo.shape[0])
+    # mfem.load_Rinv(Rmatinvcoo.row, Rmatinvcoo.col, Rmatinvcoo.data)
+    # mfem.load_pinned_mat(pinned_matcoo.row, pinned_matcoo.col, pinned_matcoo.data)
+    # mfem.do_something()
+
+    A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
+    b = k_bc * pinned_mat.T @ pinned_b - J.T @ grad
+    b = np.squeeze(b)
+
+    Acoo = A.tocoo()
+
+    Z = ti.linalg.SparseMatrixBuilder(A.shape[0], A.shape[1], max_num_triplets=A.shape[0] * A.shape[0])
+    @ti.kernel
+    def fill_A(K: ti.types.sparse_matrix_builder(), row: ti.types.ndarray(), col: ti.types.ndarray(), val: ti.types.ndarray()):
+        for i in range(col.shape[0]):
+            K[row[i], col[i]] += val[i]
+
+    fill_A(Z, Acoo.row, Acoo.col, Acoo.data)
+    ti_A = Z.build()
+    ti_b = ti.field(ti.f32, shape=(b.shape[0]))
+    ti_b.from_numpy(b)
+
+    solver = ti.linalg.SparseSolver(solver_type="LLT")
+    solver.analyze_pattern(ti_A)
+    start = time()
+    solver.factorize(ti_A)
+    end = time()
+    print("time used to factorize: ", end-start)
+    start = time()
+    x = solver.solve(ti_b)
+    end = time()
+    isSuccess = solver.info()
+    print(">>>> Solve sparse linear systems Ax = b with the solution x:")
+    print(x)
+    print(f">>>> Computation was successful?: {isSuccess}")
+    print("time used: ", end-start)
+
 #
 #     UTAU = []
 #     for i in range(len(Ut)):
@@ -286,8 +350,8 @@ if __name__ == '__main__':
 #     print("The complete sim took {0} seconds.".format(end_all_sim - start_all_sim))
 #
 #     # visualization
-#     ps.set_program_name("mfem")
-#     ps.set_ground_plane_mode("shadow_only")
-#     ps.init()
-#     ps_vol = ps.register_volume_mesh("test volume mesh", sol.reshape(-1, 3), tets=Tt)
-#     ps.show()
+    ps.set_program_name("mfem")
+    ps.set_ground_plane_mode("shadow_only")
+    ps.init()
+    ps_vol = ps.register_volume_mesh("test volume mesh", x.reshape(-1, 3), tets=Tt)
+    ps.show()
