@@ -152,7 +152,7 @@ print("NN:", NN)
 """
 
 if __name__ == '__main__':
-    ti.init()
+    # ti.init()
     np.random.seed(42)
 
     n_vertices = 30
