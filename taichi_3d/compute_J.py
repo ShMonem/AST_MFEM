@@ -93,7 +93,7 @@ def compute_J_SVD(r_mat, b, block_size=(9, 6), use_cupy=False):
     end_dot = time()
     print("Output multiply took {0} seconds".format(end_dot-start_dot))
     print("SVD and inverse compute time was {0} seconds".format(end-start))
-    return output
+    return output, block_out_inv_np
 
 
 def get_blocks(sparse_mtx, n_blocks, size_i, size_j):
