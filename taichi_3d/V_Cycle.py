@@ -97,6 +97,37 @@ def v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
         sol = gauss_seidel_np(U_utau , L_utau, b, itr, sol)
     return sol
 
+def red_v_cycle_py(A, U, L, b, UTAU, Ub, l, itr, x_init):
+    print(l, len(Ub))
+    #start = time()
+    sol = gauss_seidel_np(U, L, b, itr, x_init)
+    #end = time()
+    #print("GS took {0} seconds".format(end-start))
+
+    # compute residual
+    r = b - A.dot(sol)
+    # restrict to lower res grid
+    red_res = Ub[l].T.dot(r)
+    e = np.zeros((red_res.shape[0], 1))
+    if l == (len(Ub) -1 ): # reached the last reduction matrix in the list
+        #start = time()
+        e = spsolve(UTAU[l], red_res)
+        end = time()
+        #print("SPSolve took {0} seconds".format(end-start))
+    else:
+        utu_U, utu_L = A_L_sum_U_np(UTAU[l])
+        utb = np.squeeze(Ub[l].T @ b)
+        e = v_cycle_py(UTAU[l], utu_U, utu_L, utb, UTAU, Ub, l+1, itr, e)
+
+    sol = sol + Ub[l].dot(e)
+    if l == 0:
+        sol = gauss_seidel_np(U, L, b, itr, sol)
+    else:
+        utu_U, utu_L = A_L_sum_U_np(UTAU[l])
+        utb = np.squeeze(Ub[l].T @ b)
+        sol = np.squeeze(Ub[l].T @ sol)
+        sol = gauss_seidel_np(utu_U, utu_L, utb, itr, sol)
+    return sol
 """
 
 # Example usage:

@@ -113,25 +113,26 @@ def build_U(weight, b, levels, P, V):
 
     # if we have more than 1 level in MG ## TODO: ti.kernel
     if levels != 0:
-        P_j = P
+        #P_j = P
         for j in range(1, levels):
             print("IN THIS LOOP!")
-            P_j = P_j[:b[0, j], :]
+            #P_j = P_j[:b[j, 0], :]
+            #P_last = P[:b[0, j - 1], :]
 
-            ti_P_j = ti.Vector.field(3, dtype=ti.f32, shape=b[0, j])
-            ti_P_last = ti.Vector.field(3, dtype=ti.f32, shape=b[0, j-1])
-            ti_P_j.from_numpy(P_j)
-            P_last = P[:b[0, j-1], :]
-            ti_P_last.from_numpy(P_last)
+            ti_P_j = ti.Vector.field(3, dtype=ti.f32, shape=b[j, 0])
+            ti_P_last = ti.Vector.field(3, dtype=ti.f32, shape=b[j-1, 0])
+            ti_P_j.from_numpy(P[:b[j, 0], :])
+            ti_P_last.from_numpy(P[:b[j-1, 0], :])
+
             weight = ti.field(ti.f32, shape=b[0, j-1])
-            D = ti.Vector.field(P_j.shape[0], dtype=ti.f32, shape=P_last.shape[0])
+            D = ti.Vector.field(P[:b[j, 0], :].shape[0], dtype=ti.f32, shape=P[:b[j-1, 0], :].shape[0])
 
             closest_index(ti_P_last, ti_P_j, weight, D)
-            U_j = csr_matrix((t * b[0, j-1], t * b[0, j]))
+            U_j = csr_matrix((t * b[j-1, 0], t * b[j, 0]))
             w = weight.to_numpy().astype("int")
             for k in range(b[j - 1, 0]):
                 tmp = csr_matrix(np.eye(t))
-                U_j[t * k:t * (k+1), w[k] * t:w[k]*t+t] = tmp
+                U_j[k*t:(k+1)*t, w[k]*t:(w[k]+1)*t] = tmp
             U.append(U_j)
     return U, NN
 """
