@@ -1,12 +1,12 @@
 import cupy as cp
 from cupyx.scipy.sparse.linalg import spsolve
-from ast_fem_cp.gs_cp import gauss_seidel_cp, A_L_sum_U_cp
+from python.ast_fem_cp.gs_cp import gauss_seidel, A_L_sum_U
 from time import time
 
 
-def v_cycle_cp(A, U, L, b, UTAU, Ub, l, itr, x_init, debug=False):
+def v_cycle(A, U, L, b, UTAU, Ub, l, itr, x_init, debug=False):
     start = time()
-    sol = gauss_seidel_cp(U, L, b, itr, x_init)
+    sol = gauss_seidel(U, L, b, itr, x_init)
     end = time()
     if debug:
         print("GS took {0} seconds".format(end-start))
@@ -27,10 +27,10 @@ def v_cycle_cp(A, U, L, b, UTAU, Ub, l, itr, x_init, debug=False):
 
     sol = sol + Ub[l].dot(e)
     if l == 0:
-        sol = gauss_seidel_cp( U, L, b, itr, sol)
+        sol = gauss_seidel( U, L, b, itr, sol)
     else:
-        U_utau , L_utau = A_L_sum_U_cp(UTAU[l])
-        sol = gauss_seidel_cp(U_utau , L_utau, b, itr, sol)
+        U_utau , L_utau = A_L_sum_U(UTAU[l])
+        sol = gauss_seidel(U_utau , L_utau, b, itr, sol)
     return sol
 
 """

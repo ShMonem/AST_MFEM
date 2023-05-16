@@ -12,7 +12,7 @@ from closest_index_np import closest_index
 from tet_assignment_np import tet_assignment
 from forward_kinematics_np import forward_kinematics
 from block_r3d_np import block_r3d
-from pinvert_np import pinvert_np
+from pinvert_np import pinvert
 from python.common.igl2bart import igl2bart
 from compute_j_np import compute_J_SVD
 from v_cycle_np import v_cycle
@@ -128,7 +128,7 @@ if __name__ == '__main__':
 
     if debug:
         start = time()
-    vAssign = pinvert_np(Vt, Ht)
+    vAssign = pinvert(Vt, Ht)
     if debug:
         end = time()
         print(f"Computing the pinned verts took {end-start} seconds.")

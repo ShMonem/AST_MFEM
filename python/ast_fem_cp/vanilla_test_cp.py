@@ -6,19 +6,19 @@ import scipy.sparse as sps
 import polyscope as ps
 from time import time
 import meshio
-from def_grad3D import def_grad3D
-from common.linear_tet3dmesh_arap_ds2 import linear_tet3dmesh_arap_ds2
-from common.linear_tet3dmesh_arap_ds import linear_tet3dmesh_arap_ds
-from ast_fem_cp.build_u_cp import build_u_cp
-from ast_fem_cp.closest_index_cp import closest_index_np
-from ast_fem_cp.tet_assignment_cp import tet_assignment_np
-from forward_kinematics import forward_kinematics_np
-from block_R3d import block_R3d
-from pinvert import pinvert_np
-from igl2bart import igl2bart
-from compute_J import compute_J_SVD, compute_J
-from ast_fem_cp.v_cycle_cp import v_cycle_cp
-from ast_fem_cp.gs_cp import A_L_sum_U_cp
+from python.common.def_grad3d import def_grad3d
+from python.common.linear_tet3dmesh_arap_ds2 import linear_tet3dmesh_arap_ds2
+from python.common.linear_tet3dmesh_arap_ds import linear_tet3dmesh_arap_ds
+from python.ast_fem_cp.build_u_cp import build_u_cp
+from python.ast_fem_cp.closest_index_cp import closest_index_np
+from python.ast_fem_cp.tet_assignment_cp import tet_assignment_np
+from python.common.igl2bart import igl2bart
+from forward_kinematics_cp import forward_kinematics
+from block_r3d_cp import block_r3d
+from pinvert_cp import pinvert
+from compute_j_cp import compute_J_SVD
+from v_cycle_cp import v_cycle
+from gs_cp import A_L_sum_U
 from fill_euler_cp import fill_euler_cp
 import config
 
@@ -46,21 +46,21 @@ if __name__ == '__main__':
 
     ########## HUMAN DATA ##############
     # read human model
-    mesh = meshio.read("../data/output_mfem1.msh")
+    mesh = meshio.read("../../data/output_mfem1.msh")
     Vt_np = mesh.points
     Tt_np = mesh.cells[0].data.astype("int32")
     Vt = cp.asarray(Vt_np)
     Tt = cp.asarray(Tt_np)
     # load human skeleton
-    handlest = scipy.io.loadmat('../data/handles.mat')
-    hiert = scipy.io.loadmat("../data/hierarchy.mat")
+    handlest = scipy.io.loadmat('../../data/handles.mat')
+    hiert = scipy.io.loadmat("../../data/hierarchy.mat")
     handles = cp.asarray(handlest['position'])  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
     hier = cp.asarray(hiert['hierarchy'][:, 1])
     # level of human
     b_levels = cp.array([[50]]).astype(int)
     # load human samples
-    P_np = scipy.io.loadmat("../data/P.mat")['P']
-    PI_np = scipy.io.loadmat("../data/PI.mat")['PI']
+    P_np = scipy.io.loadmat("../../data/P.mat")['P']
+    PI_np = scipy.io.loadmat("../../data/PI.mat")['PI']
     P = cp.asarray(P_np)  ## to access the mat from the dict use: Pt['P']
     PI = cp.asarray(PI_np)
     # load human eulers
@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
     print("Getting grad...")
     # We have to use the original numpy data to compute B, and only then we go onto the GPU
-    B = cpx.scipy.sparse.csc_matrix(def_grad3D(Vt_np, Tt_np))
+    B = cpx.scipy.sparse.csc_matrix(def_grad3d(Vt_np, Tt_np))
     mu = 100  # material properties
     k_bc = 10000  # stiffness
     s = np.zeros((6 * Tt.shape[0], 1))
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     start_all_sim = time()
 
     print("Running FWD Kinematics...")
-    newR, new_handles = forward_kinematics_np(handles, hier, eulers)
+    newR, new_handles = forward_kinematics(handles, hier, eulers)
     rows_T = Tt.shape[0]
     R = np.zeros((rows_T, 9))
     # assigning rotations to each tet according to fAssign info
@@ -115,7 +115,7 @@ if __name__ == '__main__':
         R[i, :] = newR[int(fAssign[i]), :]
 
     print("Getting the R_Mat...")
-    R_mat_py = block_R3d(R)  # python function
+    R_mat_py = block_r3d(R)  # python function
 
     num_handles = handles.shape[0]
     num_midpoints = midpoints_np.shape[0]
@@ -124,7 +124,7 @@ if __name__ == '__main__':
     Ht[num_handles:, :] = midpoints_np
 
     print("Computing the pinned verts...")
-    vAssign = pinvert_np(Vt, Ht)
+    vAssign = pinvert(Vt, Ht)
     I = np.eye(3)
     q = igl2bart(Vt)
 
@@ -149,10 +149,7 @@ if __name__ == '__main__':
     ns = s.shape[0]
     nlambda = 9 * Tt.shape[0]
     start_j = time()
-    if config.USE_SVD:
-        J = compute_J_SVD(R_mat_py, B)  # cupy/numpy function
-    else:
-        J = compute_J(R_mat_py, B)
+    J = compute_J_SVD(R_mat_py, B)  # cupy/numpy function
     end_j = time()
     print("J computed in {0} seconds".format(end_j-start_j))
     A = k_bc * pinned_mat.T @ pinned_mat + J.T @ hess @ J
@@ -173,19 +170,19 @@ if __name__ == '__main__':
     rows, cols = A.nonzero()
     itr_num = 3
     l = len(Ut) - 1
-    U, L = A_L_sum_U_cp(A)  # python
+    U, L = A_L_sum_U(A)  # python
     print("Starting the multigrid solve...")
     # convert the elements we will use to cupy and thus send to the GPU
     sol_cp = cp.asarray(sol)
     A_cp = cpx.scipy.sparse.csr_matrix(A)
-    U_cp, L_cp = A_L_sum_U_cp(A_cp)
+    U_cp, L_cp = A_L_sum_U(A_cp)
     b_cp = cp.asarray(b)
     UTAU_cp = [cpx.scipy.sparse.csc_matrix(u_m) for u_m in UTAU]
     Ut_cp = [cpx.scipy.sparse.csr_matrix(u_m) for u_m in Ut]
     start_mg = time()
     while normVal > tol:
         sol_old_cp = sol_cp
-        sol_cp = v_cycle_cp(A_cp, U_cp, L_cp, b_cp, UTAU_cp, Ut_cp, l, itr_num, sol_old_cp, debug=False)
+        sol_cp = v_cycle(A_cp, U_cp, L_cp, b_cp, UTAU_cp, Ut_cp, l, itr_num, sol_old_cp, debug=False)
         normVal = np.linalg.norm(b_cp - A_cp.dot(sol_cp))
         print("error: ", normVal)
     sol = cp.asnumpy(sol_cp)

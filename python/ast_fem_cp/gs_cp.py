@@ -3,7 +3,7 @@ from cupyx.scipy.sparse.linalg import spsolve_triangular
 import cupy as cp
 
 
-def gauss_seidel_cp(U, L, b, itr, sol):
+def gauss_seidel(U, L, b, itr, sol):
     x = sol
     for i in range(itr):
         x_old = x
@@ -12,7 +12,7 @@ def gauss_seidel_cp(U, L, b, itr, sol):
     return x
 
 
-def A_L_sum_U_cp(A):
+def A_L_sum_U(A):
     L_np = tril(A).astype(cp.float64)
     U_np = (A - L_np).astype(cp.float64)
     # convert to sparse format for fast triplets fill

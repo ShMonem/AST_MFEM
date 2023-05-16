@@ -1,4 +1,4 @@
-from ast_fem_cp.closest_index_cp import closest_index_cp, closest_index_np
+from python.ast_fem_cp.closest_index_cp import closest_index_cp, closest_index_np
 
 
 def tet_assignment_cp(V, T, J):
