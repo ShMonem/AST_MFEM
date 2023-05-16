@@ -70,35 +70,37 @@ if __name__ == '__main__':
     # making a skeleton
 
     # load human skeleton
-    # handlest = scipy.io.loadmat('../data/handles.mat')
-    # hiert = scipy.io.loadmat("../data/hierarchy.mat")
-    # handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
-    # hier = hiert['hierarchy'][:, 1]
+    handlest = scipy.io.loadmat('../data/handles.mat')
+    hiert = scipy.io.loadmat("../data/hierarchy.mat")
+    handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
+    hier = hiert['hierarchy'][:, 1]
 
     # make beam skeleton
-    hier = np.array([0, 1, 2])
-    handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
+    # hier = np.array([0, 1, 2])
+    # handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
 
     # level of beam
-    b_levels = np.array([[100]]).astype(int)
+    # b_levels = np.array([[30]]).astype(int)
 
     # level of human
-    # b_levels = np.array([[50]]).astype(int)
+    b_levels = np.array([[50]]).astype(int)
 
     l = b_levels.shape[0]
-
+    """
+    ## collecting samples
     start_j = time()
     numSamples = 150    # max num samples
     py_P, py_PI = sampling3d(Tt, Vt, numSamples)
     mdic = {"py_P": py_P, "label": "humamModelSamplesMat"}
-    savemat("human_py_P.mat", mdic)
+    scipy.io.savemat("human_py_P.mat", mdic)
     end_j = time()
     print("sampling in {0} seconds".format(end_j - start_j))
+    """
     # load beam samples
-    #py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-    #py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']  ## no need to load it
+    # py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
+    # py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']  ## no need to load it
     # load human samples
-    # py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
+    py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
     # py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
 
     # translate everything to taichi
@@ -110,7 +112,8 @@ if __name__ == '__main__':
     weight = ti.field(ti.i32, shape=Vt.shape[0])
     Ddummy = ti.Vector.field(py_P.shape[0], dtype=ti.f32, shape=Vt.shape[0])
     P = ti.Vector.field(3, dtype=ti.f32, shape=py_P.shape[0])
-    P.from_numpy(py_P[0:b_levels[0,0], :])
+    #P.from_numpy(py_P[0:b_levels[0,0], :])
+    P.from_numpy(py_P)
     closest_index(V, P, weight, Ddummy)   # ti.kernel
     Ut, NN = build_U(weight.to_numpy(), b_levels, l, P, Vt)   # python function
 
