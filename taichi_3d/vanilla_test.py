@@ -80,7 +80,7 @@ if __name__ == '__main__':
     handles = np.array([[-4.5, 0.0, 0.0], [0.0, 0.0, 0.0], [4.5, 0.0, 0.0]])
 
     # level of beam
-    b_levels = np.array([[30]]).astype(int)
+    b_levels = np.array([[100]]).astype(int)
 
     # level of human
     # b_levels = np.array([[50]]).astype(int)
@@ -88,7 +88,10 @@ if __name__ == '__main__':
     l = b_levels.shape[0]
 
     start_j = time()
-    py_P, py_PI = sampling3d(Tt, Vt, b_levels[0,0])
+    numSamples = 150    # max num samples
+    py_P, py_PI = sampling3d(Tt, Vt, numSamples)
+    mdic = {"py_P": py_P, "label": "humamModelSamplesMat"}
+    savemat("human_py_P.mat", mdic)
     end_j = time()
     print("sampling in {0} seconds".format(end_j - start_j))
     # load beam samples
@@ -107,7 +110,7 @@ if __name__ == '__main__':
     weight = ti.field(ti.i32, shape=Vt.shape[0])
     Ddummy = ti.Vector.field(py_P.shape[0], dtype=ti.f32, shape=Vt.shape[0])
     P = ti.Vector.field(3, dtype=ti.f32, shape=py_P.shape[0])
-    P.from_numpy(py_P)
+    P.from_numpy(py_P[0:b_levels[0,0], :])
     closest_index(V, P, weight, Ddummy)   # ti.kernel
     Ut, NN = build_U(weight.to_numpy(), b_levels, l, P, Vt)   # python function
 
