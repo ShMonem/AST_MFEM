@@ -46,21 +46,21 @@ if __name__ == '__main__':
 
     ########## HUMAN DATA ##############
     # read human model
-    mesh = meshio.read("../../data/output_mfem1.msh")
+    mesh = meshio.read("../../data/human/output_mfem1.msh")
     Vt_np = mesh.points
     Tt_np = mesh.cells[0].data.astype("int32")
     Vt = cp.asarray(Vt_np)
     Tt = cp.asarray(Tt_np)
     # load human skeleton
-    handlest = scipy.io.loadmat('../../data/handles.mat')
-    hiert = scipy.io.loadmat("../../data/hierarchy.mat")
+    handlest = scipy.io.loadmat('../../data/human/handles.mat')
+    hiert = scipy.io.loadmat("../../data/human/hierarchy.mat")
     handles = cp.asarray(handlest['position'])  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
     hier = cp.asarray(hiert['hierarchy'][:, 1])
     # level of human
     b_levels = cp.array([[50]]).astype(int)
     # load human samples
-    P_np = scipy.io.loadmat("../../data/P.mat")['P']
-    PI_np = scipy.io.loadmat("../../data/PI.mat")['PI']
+    P_np = scipy.io.loadmat("../../data/human/P.mat")['P']
+    PI_np = scipy.io.loadmat("../../data/human/PI.mat")['PI']
     P = cp.asarray(P_np)  ## to access the mat from the dict use: Pt['P']
     PI = cp.asarray(PI_np)
     # load human eulers
