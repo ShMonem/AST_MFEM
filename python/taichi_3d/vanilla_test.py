@@ -46,7 +46,7 @@ if __name__ == '__main__':
     #mesh = meshio.read("../data/beam.mesh")
 
     # read human model
-    mesh = meshio.read("../data/output_mfem1.msh")
+    mesh = meshio.read("../data/human.msh")
 
     Vt = mesh.points
 
@@ -70,8 +70,8 @@ if __name__ == '__main__':
     # making a skeleton
 
     # load human skeleton
-    # handlest = scipy.io.loadmat('../data/handles.mat')
-    # hiert = scipy.io.loadmat("../data/hierarchy.mat")
+    # handlest = scipy.io.loadmat('../data/beam_handles.mat')
+    # hiert = scipy.io.loadmat("../data/beam_hierarchy.mat")
     # handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
     # hier = hiert['hierarchy'][:, 1]
 
@@ -95,11 +95,11 @@ if __name__ == '__main__':
     end_j = time()
     print("sampling in {0} seconds".format(end_j - start_j))
     # load beam samples
-    #py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-    #py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']  ## no need to load it
+    #py_P = scipy.io.loadmat("../data/beam_P.mat")['P']
+    #py_PI = scipy.io.loadmat("../data/beam_PI.mat")['PI']  ## no need to load it
     # load human samples
-    # py_P = scipy.io.loadmat("../data/P.mat")['P']  ## to access the mat from the dict use: Pt['P']
-    # py_PI = scipy.io.loadmat("../data/PI.mat")['PI']
+    # py_P = scipy.io.loadmat("../data/human_P.mat")['P']  ## to access the mat from the dict use: Pt['P']
+    # py_PI = scipy.io.loadmat("../data/human_PI.mat")['PI']
 
     # translate everything to taichi
     ti.init(arch=ti.cpu)

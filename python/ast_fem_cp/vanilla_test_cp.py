@@ -37,8 +37,8 @@ if __name__ == '__main__':
     # # level of beam
     # b_levels = np.array([[30]]).astype(int)
     # # load beam samples
-    # py_P = scipy.io.loadmat("../data/P_beam.mat")['P']
-    # py_PI = scipy.io.loadmat("../data/PI_beam.mat")['PI']
+    # py_P = scipy.io.loadmat("../data/beam_P.mat")['P']
+    # py_PI = scipy.io.loadmat("../data/beam_PI.mat")['PI']
     # # beam eulers
     # eulers = np.array([[0.0, 0.0, 0.0], [-np.pi / 3, 0.0, 0.0], [0.0, 0.0, 0.0]])
     # # eulers = np.array([[0.0, 0.0, 0.0], [0.0, -np.pi/2, 0.0], [0.0, 0.0, 0.0]])
@@ -46,21 +46,21 @@ if __name__ == '__main__':
 
     ########## HUMAN DATA ##############
     # read human model
-    mesh = meshio.read("../../data/human/output_mfem1.msh")
+    mesh = meshio.read("../../data/human/human.msh")
     Vt_np = mesh.points
     Tt_np = mesh.cells[0].data.astype("int32")
     Vt = cp.asarray(Vt_np)
     Tt = cp.asarray(Tt_np)
     # load human skeleton
-    handlest = scipy.io.loadmat('../../data/human/handles.mat')
-    hiert = scipy.io.loadmat("../../data/human/hierarchy.mat")
+    handlest = scipy.io.loadmat('../../data/human/human_handles.mat')
+    hiert = scipy.io.loadmat("../../data/human/human_hierarchy.mat")
     handles = cp.asarray(handlest['position'])  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
     hier = cp.asarray(hiert['hierarchy'][:, 1])
     # level of human
     b_levels = cp.array([[50]]).astype(int)
     # load human samples
-    P_np = scipy.io.loadmat("../../data/human/P.mat")['P']
-    PI_np = scipy.io.loadmat("../../data/human/PI.mat")['PI']
+    P_np = scipy.io.loadmat("../../data/human/human_P.mat")['P']
+    PI_np = scipy.io.loadmat("../../data/human/human_PI.mat")['PI']
     P = cp.asarray(P_np)  ## to access the mat from the dict use: Pt['P']
     PI = cp.asarray(PI_np)
     # load human eulers

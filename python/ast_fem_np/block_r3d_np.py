@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.sparse import block_diag, csr_matrix
-import config
 
 def block_r3d(R, blocks=False):
     n = R.shape[0]

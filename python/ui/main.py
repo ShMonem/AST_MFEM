@@ -2,6 +2,7 @@ import polyscope as ps
 import numpy as np
 import polyscope.imgui as psim
 from skeleton import Skeleton
+import python.ast_fem_np.vanilla_test_np as vanilla_test_np
 
 frame = 0
 skel_anim = np.load("../../data/human/human_skel_anim.npy")
@@ -28,19 +29,21 @@ def callback():
 
 def main():
     global sk, bone_handles
-    ps.set_program_name("mfem")
-    ps.set_ground_plane_mode("none")
-    ps.init()
+    sol, tets = vanilla_test_np.main('human')
 
     sk.load_skeleton("../../data/human/skel_ws_tms.npy",
                      "../../data/human/skel_hier.json",
                      "../../data/human/skel_names.npy", transpose=True)
-
+    ps.init()
     for i, bone in enumerate(sk.skeleton):
         tmp = ps.register_curve_network("joint" + str(i), bone.get_verts(), bone.get_edges(), radius=0.002)
         bone_handles.append(tmp)
 
+    # visualization
     ps.set_user_callback(callback)
+    ps.set_program_name("mfem")
+    ps.set_ground_plane_mode("shadow_only")
+    ps_vol = ps.register_volume_mesh("test volume mesh", sol.reshape(-1, 3), tets=tets)
     ps.show()
 
 
