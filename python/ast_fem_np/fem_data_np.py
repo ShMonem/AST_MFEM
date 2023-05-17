@@ -2,6 +2,7 @@ import meshio
 import scipy
 import os
 import numpy as np
+from
 
 
 class FEMData:
@@ -29,7 +30,7 @@ class FEMData:
             self.load_skel_anim(os.path.join(obj_root_path, f'{obj_name}_skel_anim.npy'))
 
     def load_skel_anim(self, skel_anim_path):
-        pass
+        self.skeleton = Skeleton()
 
 
 if __name__ == "__main__":

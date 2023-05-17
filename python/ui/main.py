@@ -1,7 +1,7 @@
 import polyscope as ps
 import numpy as np
 import polyscope.imgui as psim
-from skeleton import Skeleton
+from python.common.skeleton import Skeleton
 import python.ast_fem_np.vanilla_test_np as vanilla_test_np
 
 frame = 0
