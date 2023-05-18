@@ -55,7 +55,9 @@ def fill_euler(handles):
     eulers [58, :] = [-0.054 * np.pi / 180, -0.271 * np.pi / 180, -2.847 * np.pi / 180] 
     eulers [60, :] = [-12.450 * np.pi / 180, 5.272 * np.pi / 180, -126.553 * np.pi / 180,] 
     eulers [61, :] = [0.769 * np.pi / 180, 9.669 * np.pi / 180, 77.890 * np.pi / 180] 
-    eulers [62, :] = [5.019 * np.pi / 180, -6.404 * np.pi / 180, 14.526 * np.pi / 180] 
-    return eulers
+    eulers [62, :] = [5.019 * np.pi / 180, -6.404 * np.pi / 180, 14.526 * np.pi / 180]
+
+    scale = 1/30
+    return eulers * scale
 
 
