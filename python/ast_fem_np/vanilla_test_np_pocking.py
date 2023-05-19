@@ -18,7 +18,7 @@ from compute_j_np import compute_J_SVD
 from v_cycle_np import v_cycle
 from gauss_seidel_np import A_L_sum_U
 from fill_euler_np import fill_euler
-from PIL import Image, ImageDraw
+from poke_character import poke_character
 import config
 
 ps.init()
@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     ########## HUMAN DATA ##############
     # read human model
-    mesh = meshio.read("../../data/output_mfem1.msh")
+    mesh = meshio.read("../../data/human_char_dense.msh")
     Vt = mesh.points
     Tt = mesh.cells[0].data.astype("int32")
     # load human skeleton
@@ -137,16 +137,11 @@ if __name__ == '__main__':
         print(f"Finished the one time setup.\nThe setup took {end-start_setup} seconds.")
 
     ## start simulations (local area poking effect)
-    poke_mag = 0.24 # magnitude of poking effect
-    character_init_pos = np.array([0.0, 0.0, 0.0])
-    poke_at_vert = 481  #504
-    poke_raduis = 0.8 #0.4
-    verts = Vt.copy()
-    distance_to_poked_vert = np.linalg.norm(verts - verts[poke_at_vert], axis=1)
-    poke_effect = np.zeros_like(distance_to_poked_vert)
-    poke_effect[distance_to_poked_vert <= poke_raduis] = poke_mag
-    chatacter_gif = []
-    for t in np.linspace(0., 30, 20):
+
+    if config.SIM_POKE:
+        poke_effect = poke_character(Vt, 0.24, 481, 1, 1.5, "plane")
+
+    for t in np.linspace(0., 20, 15):
         # We move the handles here, so let's consider that we start the sim from around this point
         if debug:
             start_all_sim = time()
@@ -244,11 +239,14 @@ if __name__ == '__main__':
         ps.set_program_name("mfem")
         ps.set_ground_plane_mode("shadow_only")
 
-        poked_character = sol.reshape(-1, 3).copy()
-        poked_character += poke_effect[:, np.newaxis] * (t/3)   #(t/15)
+        character = sol.reshape(-1, 3).copy()
 
-        ps_vol = ps.register_volume_mesh("test volume mesh", poked_character, tets=Tt)
+        if config.SIM_POKE:
+            character += poke_effect[:, np.newaxis] * (t/3)   #(t/15)
+
+        ps_vol = ps.register_volume_mesh("test volume mesh", character, tets=Tt)
         ps_vol.add_scalar_quantity("poke me!", poke_effect, defined_on="vertices", cmap="phase")
-        #ps.look_at((0., 0., 2), (0., 0., 0.))
+
+        ## Uncomment to save screenshots
         #ps.screenshot(transparent_bg=False)
         ps.show()
