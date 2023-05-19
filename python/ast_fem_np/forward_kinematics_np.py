@@ -21,36 +21,21 @@ def compute_rotation(alpha, beta, gamma):
 def forward_kinematics(handles, hier, eulers):
     n = handles.shape[0]
     new_handles = np.zeros_like(handles)
-    n_newR = handles.shape[0] - 1
-    newR = np.zeros((n_newR, 9))
-    newR[:, [0, 4, 8]] = 1
-    T = np.zeros((n_newR + 1, 9))
-    T[:, [0, 4, 8]] = 1
+    newR = np.zeros((n-1, 3, 3))
+    newR[:, :] = np.eye(3)
+    T = np.zeros((n, 3, 3))
+    T[:, :] = np.eye(3)
     for i in range(n):
         loc_rot_mtx = compute_rotation(eulers[i, 0], eulers[i, 1], eulers[i, 2])  # (3, 3)
         if hier[i] == 0:  # what does this case mean? # this is the root node
-            for j in range(3):
-                for k in range(3):
-                    T[i, j * 3 + k] = loc_rot_mtx[j, k]  # F order
-            for k in range(3):
-                new_handles[i, k] = handles[i, k]
+            T[i] = loc_rot_mtx  # F order
+            new_handles[i] = handles[i]
         else:
-            for j in range(9):
-                newR[i - 1, j] = T[int(hier[i] - 1), j]
-            Tp = np.array([  # printing shows Tp is always the identity
-                [T[int(hier[i] - 1), 0], T[int(hier[i] - 1), 3], T[int(hier[i] - 1), 6]],
-                [T[int(hier[i] - 1), 1], T[int(hier[i] - 1), 4], T[int(hier[i] - 1), 7]],
-                [T[int(hier[i] - 1), 2], T[int(hier[i] - 1), 5], T[int(hier[i] - 1), 8]],
-            ])
-            vecl = np.array([handles[i, l] - handles[int(hier[i] - 1), l] for l in range(3)])
-            vec = np.array([0.0, 0.0, 0.0])
-            for l in range(3):
-                vec[l] = new_handles[int(hier[i] - 1), l] + Tp[l, :] @ vecl
-            for l in range(3):
-                new_handles[i, l] = vec[l]
-            temp = Tp @ loc_rot_mtx
-            temp = temp.astype(float)
-            for j in range(3):
-                for k in range(3):
-                    T[i, j * 3 + k] = temp[k, j]
-    return newR, new_handles
+            newR[i - 1] = T[int(hier[i] - 1)]
+            Tp = T[int(hier[i] - 1)].T
+            vecl = handles[i] - handles[int(hier[i] - 1)]
+            vec = new_handles[int(hier[i] - 1)] + Tp @ vecl
+            new_handles[i, :] = vec
+            temp = (Tp @ loc_rot_mtx).astype(float)
+            T[i] = temp.T
+    return newR.reshape((-1,9)), new_handles

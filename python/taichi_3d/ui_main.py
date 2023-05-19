@@ -21,7 +21,7 @@ def callback():
             for i, bone in enumerate(sk.skeleton):
                 bone_handles[i].update_node_positions(bone.get_verts())
         else:
-            tms = np.load("../../data/human/skel_ws_tms.npy")
+            tms = np.load("../../data/human/human_skel_ws_tms.npy")
             sk.set_bones(tms, transpose=True)
             for i, bone in enumerate(sk.skeleton):
                 bone_handles[i].update_node_positions(bone.get_verts())
@@ -32,9 +32,9 @@ def main():
     ps.set_ground_plane_mode("none")
     ps.init()
 
-    sk.load_skeleton("../../data/human/skel_ws_tms.npy",
-                     "../../data/human/skel_hier.json",
-                     "../../data/human/skel_names.npy", transpose=True)
+    sk.load_skeleton("../../data/human/human_skel_ws_tms.npy",
+                     "../../data/human/human_skel_hier.json",
+                     "../../data/human/human_skel_names.npy", transpose=True)
 
     for i, bone in enumerate(sk.skeleton):
         tmp = ps.register_curve_network("joint" + str(i), bone.get_verts(), bone.get_edges(), radius=0.002)
