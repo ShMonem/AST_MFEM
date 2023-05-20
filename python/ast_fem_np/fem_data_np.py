@@ -37,6 +37,8 @@ class FEMData:
         self.init_pinned_pos = None
         # Initial pinned vertex ids
         self.init_pin_verts = None
+        # Offsets for the pinned verts
+        self.pinned_vert_offsets = None
         # Path properties
         self.obj_name = obj_name
         self.obj_root_path = os.path.abspath(f"../../data/{self.obj_name}")
@@ -224,6 +226,7 @@ class FEMData:
             start = time()
 
         self.init_pin_verts = pinvert(self.verts, self.init_pinned_pos)
+        self.pinned_vert_offsets = self.verts[self.init_pin_verts] - self.init_pinned_pos
 
         if self.debug:
             end = time()

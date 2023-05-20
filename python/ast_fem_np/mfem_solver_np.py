@@ -23,6 +23,7 @@ class MFEMSolver:
         joint_pos = self.obj_data.handles_pos
         J = self.compute_J(joint_rots)
         pinned_mat = self.build_pinned_mat()
+        # transformed_vert_offsets = np.matmul(some_local_rots, self.obj_data.pinned_vert_offsets, axis=1)
         pinned_b = self.compute_pinned_b(joint_pos)
         # Factorized A
         A = self.obj_data.k_bc * pinned_mat.T @ pinned_mat + J.T @ self.obj_data.hess @ J
@@ -58,6 +59,30 @@ class MFEMSolver:
         pinned_positions = np.zeros((joint_pos.shape[0] + midpoints.shape[0], 3))
         pinned_positions[:joint_pos.shape[0], :] = joint_pos
         pinned_positions[joint_pos.shape[0]:, :] = midpoints
+
+        # We have to account for the initial offsets when we pin certain verts. Thus, we have to skin them to the
+        # relevant joints and midpoints used in the pinned_positions.
+        if self.obj_data.handles_rot.shape[0] != midpoints.shape[0]:
+            local_rots = self.obj_data.get_parent_rots(self.obj_data.handles_rot)
+            offsets = self.obj_data.pinned_vert_offsets.copy()
+            offsets[:self.obj_data.handles_pos.shape[0]] = np.einsum('...ij,...j',
+                                                    self.obj_data.handles_rot.reshape(-1, 3, 3).transpose((0, 2, 1)),
+                                                    offsets[:self.obj_data.handles_pos.shape[0]])
+            offsets[self.obj_data.handles_pos.shape[0]:] = np.einsum('...ij,...j',
+                                                                local_rots.reshape(-1, 3, 3).transpose((0, 2, 1)),
+                                                                offsets[self.obj_data.handles_pos.shape[0]:])
+        else:
+            main_rots = np.matmul(np.transpose(self.obj_data.skeleton.inv_rest_skel[:, :3, :3], axes=(0, 1, 2)),
+                                               self.obj_data.skeleton.get_rotations())
+            offsets = self.obj_data.pinned_vert_offsets.copy()
+            offsets[:self.obj_data.handles_pos.shape[0]] = np.einsum('...ij,...j',
+                                                                     main_rots.transpose((0, 2, 1)),
+                                                                     offsets[:self.obj_data.handles_pos.shape[0]])
+            offsets[self.obj_data.handles_pos.shape[0]:] = np.einsum('...ij,...j',
+                                                    self.obj_data.handles_rot.reshape(-1, 3, 3).transpose((0, 2, 1)),
+                                                    offsets[self.obj_data.handles_pos.shape[0]:])
+
+        pinned_positions = pinned_positions + offsets
 
         pinned_b = igl2bart(pinned_positions)
         return pinned_b
