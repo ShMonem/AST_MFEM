@@ -96,6 +96,8 @@ def main():
     fem_solver.obj_data.ps_vol = ps.register_volume_mesh("test volume mesh2", sol.reshape(-1, 3),
                                                          tets=fem_solver.obj_data.tets)
     fem_solver.obj_data.ps_vol.set_enabled(fem_solver.obj_data.visibility)
+    # ps.register_volume_mesh("test mesh2", fem_solver.obj_data.verts,
+    #                         tets=fem_solver.obj_data.tets)
     ps.show()
 
 

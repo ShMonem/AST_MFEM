@@ -20,6 +20,7 @@ class FEMData:
     def __init__(self, obj_name, load_skel=False, use_eulers=True, visibility=True,
                  reduction_size=50):
         self.debug = config.DEBUG
+        self.energy_type = 'arap'
         self.visibility = visibility
         self.ps_vol = None
         self.obj_name = obj_name
@@ -72,9 +73,11 @@ class FEMData:
         # Material properties
         self.s = np.zeros((6 * self.tets.shape[0], 1))
         self.mu = 100  # material properties
-        self.k_bc = 10000  # stiffness
+        self.k_bc = 10000000000  # stiffness
         # Run pre-computation of initial structures and associations
         self.do_precompute()
+        # Testing custom tet assignment
+        self.tet_assign = np.load(r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\human\human_tet_maya_weights.npy')
 
     def load_skeleton(self):
         self.skeleton = Skeleton()
@@ -96,7 +99,7 @@ class FEMData:
                 self.handles_pos = self.skeleton.get_positions()
                 self.handles_rot = np.matmul(np.transpose(self.skeleton.inv_rest_skel[:, :3, :3], axes=(0, 1, 2)),
                                              self.skeleton.get_rotations()).reshape((-1, 9))
-                self.handles_rot = self.get_parent_rots(self.handles_rot)
+                # self.handles_rot = self.get_parent_rots(self.handles_rot)
 
     def forward_kinematics(self, in_positions, in_eulers):
         n = in_positions.shape[0]
@@ -163,10 +166,14 @@ class FEMData:
             print(f"Getting grad took {end - start} seconds.")
         if self.debug:
             start = time()
-        self.grad = linear_tet3dmesh_arap_ds(self.verts, self.tets, self.s, self.mu)
-        self.hess = linear_tet3dmesh_arap_ds2(self.verts, self.tets, self.s, self.mu)
-        # self.grad = linear_tet3dmesh_corot_ds(2.4138e+06, 2.1724e+07, self.tets.shape[0])
-        # self.hess = linear_tet3dmesh_corot_ds2(2.4138e+06, 2.1724e+07, self.tets.shape[0])
+        if self.energy_type == 'arap':
+            self.grad = linear_tet3dmesh_arap_ds(self.verts, self.tets, self.s, self.mu)
+            self.hess = linear_tet3dmesh_arap_ds2(self.verts, self.tets, self.s, self.mu)
+        elif self.energy_type == 'corot':
+            self.grad = linear_tet3dmesh_corot_ds(2.4138e+06, 2.1724e+07, self.tets.shape[0])
+            self.hess = linear_tet3dmesh_corot_ds2(2.4138e+06, 2.1724e+07, self.tets.shape[0])
+        else:
+            raise NotImplementedError(f"The {self.energy_type} energy is not supported.")
         if self.debug:
             end = time()
             print(f"Getting energy took {end - start} seconds.")

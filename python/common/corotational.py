@@ -22,4 +22,4 @@ def linear_tet3dmesh_corot_ds(mu, la, n_tets):
     n = n_tets
     vec = -np.array([3*la+2*mu, 3*la+2*mu, 3*la+2*mu, 0, 0, 0])
 
-    return np.tile(vec.T, n)
+    return np.expand_dims(np.tile(vec.T, n), axis=1)
