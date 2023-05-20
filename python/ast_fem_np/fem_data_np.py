@@ -11,7 +11,7 @@ from python.common.linear_tet3dmesh_arap_ds import linear_tet3dmesh_arap_ds
 from python.common.corotational import linear_tet3dmesh_corot_ds
 from python.common.corotational import linear_tet3dmesh_corot_ds2
 from python.ast_fem_np.build_u_np import build_u
-from python.ast_fem_np.closest_index_np import closest_index
+from python.ast_fem_np.closest_index_np import closest_index, point_to_line_distance
 from python.ast_fem_np.tet_assignment_np import tet_assignment
 from python.ast_fem_np.pinvert_np import pinvert
 
@@ -53,11 +53,10 @@ class FEMData:
         self.verts = mesh.points
         # Material properties
         self.s = np.zeros((6 * self.tets.shape[0], 1))
-        self.mu = 100  # material properties
+        self.mu = 1000  # material properties
         self.k_bc = 10000  # stiffness
         # Skeleton stuff
-        # TODO: Use the skeleton hierarchy that we load
-        self.hier = scipy.io.loadmat(os.path.join(self.obj_root_path, f'{self.obj_name}_hierarchy.mat'))['hierarchy'][:, 1]
+        self.hier = None
         if use_eulers:
             self.eulers = scipy.io.loadmat(os.path.join(self.obj_root_path, f'{self.obj_name}_eulers.mat'))['eulers']
             self.eulers[0] = np.array([0, 0, 0])
@@ -73,7 +72,7 @@ class FEMData:
         # Testing custom tet assignment - we overwrite the results from do_precompute here.
         # NOTE: If you do not want to use this, after commenting out, make sure to uncomment a line in set_bones!
         # TODO: This needs to be a rotation clustering selection option
-        self.tet_assign = np.load(r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\human\human_tet_maya_weights.npy')
+        # self.tet_assign = np.load(r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\human\human_tet_maya_weights.npy')
 
     def load_skeleton(self):
         self.skeleton = Skeleton()
@@ -83,6 +82,7 @@ class FEMData:
                                     transpose=True)
         # This sets the transforms twice, but it sets the other parameters, too
         self.handles_pos = self.skeleton.rest_skel[:, -1, :3]
+        self.hier = self.skeleton.hier[:, 1]
         self.set_bones(self.skeleton.skel_tms)
 
     def set_bones(self, bones_tms):
@@ -96,7 +96,7 @@ class FEMData:
                 self.handles_rot = np.matmul(np.transpose(self.skeleton.inv_rest_skel[:, :3, :3], axes=(0, 1, 2)),
                                              self.skeleton.get_rotations()).reshape((-1, 9))
                 # Uncomment the next line if we do not use the maya assigned weights.
-                # self.handles_rot = self.get_parent_rots(self.handles_rot)
+                self.handles_rot = self.get_parent_rots(self.handles_rot)
 
     def forward_kinematics(self, in_positions, in_eulers):
         n = in_positions.shape[0]
@@ -206,7 +206,9 @@ class FEMData:
         if self.debug:
             start = time()
 
-        self.tet_assign = tet_assignment(self.verts, self.tets, midpoints_np)
+        # self.tet_assign = tet_assignment(self.verts, self.tets, midpoints_np)
+        barycenters = self.verts[self.tets].sum(1) / 4.0
+        self.tet_assign = point_to_line_distance(barycenters, self.handles_pos, self.hier)
 
         if self.debug:
             end = time()

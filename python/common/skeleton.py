@@ -9,8 +9,11 @@ class Skeleton:
         self.bones = []
         # skel tms are referenced by each bone, not copied. Be careful how you mess with it!
         self.skel_tms = None
+        self.skel_names = None
         self.bone_handles = list()
         self.visibility = False
+        self.hier = None
+        self.par_child_tree = None
 
     def add(self, bone):
         self.bones.append(bone)
@@ -22,6 +25,7 @@ class Skeleton:
         with open(file_hierarchy, 'r') as f:
             skeleton_hierarchy = json.load(f)
         namelist = np.load(file_namelist)
+        self.skel_names = namelist
         self.par_child_tree = self.build_child_parent_tree(skeleton_hierarchy)
         self.hier = self.build_child_parent_index(skeleton_hierarchy, namelist)
         skel = list()
@@ -60,8 +64,8 @@ class Skeleton:
     def build_child_parent_index(hier, name_list):
         out_array = list()
         for elem in hier:
-            elem_id = np.where(name_list == elem)[0][0]
-            par_id = 0 if hier[elem] == 'root' else np.where(name_list == hier[elem])[0][0]
+            elem_id = np.where(name_list == elem)[0][0] + 1
+            par_id = 0 if hier[elem] == 'root' else np.where(name_list == hier[elem])[0][0] + 1
             out_array.append([elem_id, par_id])
         return np.array(out_array)
 
