@@ -7,7 +7,6 @@ from python.common.bone import COMPUTE_CIRCLE
 
 frame = 0
 skel_anim = np.load('../../data/human/human_skel_anim.npy')
-# skel_anim = np.load('../../data/human/human_arm_rotate.npy')
 obj_data = FEMData('human', load_skel=True, use_eulers=False)
 fem_solver = MFEMSolver(obj_data)
 
@@ -42,11 +41,9 @@ def callback_frame():
     global frame, fem_solver, skel_anim
     changed, frame = psim.SliderInt("Anim Frame", frame, v_min=0, v_max=skel_anim.shape[0]-1)
     if (psim.Button("<")):
-        # This code is executed when the button is pressed
         bwd_anim()
     psim.SameLine()
     if (psim.Button(">")):
-        # This code is executed when the button is pressed
         fwd_anim()
     if changed:
         if frame >= 0 and frame < skel_anim.shape[0]:
@@ -96,8 +93,6 @@ def main():
     fem_solver.obj_data.ps_vol = ps.register_volume_mesh("test volume mesh2", sol.reshape(-1, 3),
                                                          tets=fem_solver.obj_data.tets)
     fem_solver.obj_data.ps_vol.set_enabled(fem_solver.obj_data.visibility)
-    # ps.register_volume_mesh("test mesh2", fem_solver.obj_data.verts,
-    #                         tets=fem_solver.obj_data.tets)
     ps.show()
 
 

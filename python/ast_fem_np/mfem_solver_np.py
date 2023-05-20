@@ -99,6 +99,7 @@ class MFEMSolver:
             print(f"The solve took {end_solve-start_solve} seconds.")
         return sol
 
+    # Note this may be broken atm
     def multi_grid_solve(self, A, b, tol=1e-5, itr_num=1):
         UTAU = []
         for i in range(len(self.obj_data.Ut)):
