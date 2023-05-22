@@ -32,8 +32,8 @@ from V_Cycle import *
 if __name__ == "__main__":
     ## ----------------------------------------------------------
     ## Load a mesh in OFF format
-    _, Ft = igl.read_triangle_mesh(("../data/output_mfem1.msh"))
-    mesh = meshio.read("../data/output_mfem1.msh")
+    _, Ft = igl.read_triangle_mesh(("../data/human.msh"))
+    mesh = meshio.read("../data/human.msh")
     Vt = mesh.points
     Tt = mesh.cells[0].data
     ## Print the vertices and faces matrices
@@ -60,8 +60,8 @@ if __name__ == "__main__":
     # either used the function smpling3d(T, V, b[0])
     # TODO: P, PI = sampling 3d()
     # or upload previously stored samples
-    Pt = sio.loadmat("../data/P.mat")  ## to access the mat from the dict use: Pt['P']
-    PIt = sio.loadmat("../data/PI.mat")  ## to access the entries from the dict use: PIt['PI']
+    Pt = sio.loadmat("../data/human_P.mat")  ## to access the mat from the dict use: Pt['P']
+    PIt = sio.loadmat("../data/human_PI.mat")  ## to access the entries from the dict use: PIt['PI']
 
     # initialize the required taichi fields to pass, and store in 'weights',
     # also a dummy vectorfield used by the function "closest_index" for intermediate commputations
@@ -92,8 +92,8 @@ if __name__ == "__main__":
     end = time()
     print('| build numpy reduction matrices                     |', round(end - start, 3), 's|')
     # or upload previously stored samples
-    handlest = sio.loadmat('../data/handles.mat')
-    hiert = sio.loadmat("../data/hierarchy.mat")
+    handlest = sio.loadmat('../data/beam_handles.mat')
+    hiert = sio.loadmat("../data/beam_hierarchy.mat")
     handles = handlest['position']  ## to access the mat from the dict use: handles['position'] (numHandels, 3)
     hier = hiert['hierarchy'][:, 1]  ## to access the entries from the dict use: hiert['hierarchy']  (numHandles, 2)
 

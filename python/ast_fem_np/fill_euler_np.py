@@ -1,8 +1,6 @@
 import numpy as np
 
-def fill_euler(handles):
-    num_handles = handles.shape[0]
-
+def fill_euler(num_handles):
     eulers = np.zeros ((num_handles, 3))
     
     eulers [0, :] = [0.496 * np.pi / 180, -0.240 * np.pi / 180 , 34.824 * np.pi / 180]

@@ -1,6 +1,6 @@
 from scipy.sparse.linalg import spsolve
 import numpy as np
-from gauss_seidel_np import gauss_seidel, A_L_sum_U
+from python.ast_fem_np.gauss_seidel_np import gauss_seidel, A_L_sum_U
 from time import time
 
 
