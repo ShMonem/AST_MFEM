@@ -7,7 +7,7 @@ from python.common.bone import COMPUTE_CIRCLE
 
 frame = 0
 obj_name = 'human'
-skel_anim = np.load(f'../../data/{obj_name}/{obj_name}_arm_rotate.npy')
+skel_anim = np.load(f'../../data/{obj_name}/{obj_name}_skel_anim.npy')
 obj_data = FEMData(obj_name, load_skel=True, use_eulers=False)
 fem_solver = MFEMSolver(obj_data)
 
@@ -48,8 +48,7 @@ def callback_frame():
         fwd_anim()
     if changed:
         if frame >= 0 and frame < skel_anim.shape[0]:
-            # update_elements()
-            fem_solver.curr_frame = frame
+            update_elements()
         else:
             tms = np.load("../../data/human/human_skel_ws_tms.npy")
             fem_solver.obj_data.set_bones(tms)
