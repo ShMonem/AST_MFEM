@@ -7,7 +7,7 @@ from python.common.bone import COMPUTE_CIRCLE
 
 frame = 0
 obj_name = 'human'
-skel_anim = np.load(f'../../data/{obj_name}/{obj_name}_skel_anim.npy')
+skel_anim = np.load(f'../../data/{obj_name}/{obj_name}_arm_rotate.npy')
 obj_data = FEMData(obj_name, load_skel=True, use_eulers=False)
 fem_solver = MFEMSolver(obj_data)
 
@@ -48,7 +48,8 @@ def callback_frame():
         fwd_anim()
     if changed:
         if frame >= 0 and frame < skel_anim.shape[0]:
-            update_elements()
+            # update_elements()
+            fem_solver.curr_frame = frame
         else:
             tms = np.load("../../data/human/human_skel_ws_tms.npy")
             fem_solver.obj_data.set_bones(tms)
@@ -94,6 +95,11 @@ def main():
     fem_solver.obj_data.ps_vol = ps.register_volume_mesh("test volume mesh2", sol.reshape(-1, 3),
                                                          tets=fem_solver.obj_data.tets)
     fem_solver.obj_data.ps_vol.set_enabled(fem_solver.obj_data.visibility)
+
+    # tet_sel = np.load(r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle_rigid_tets.npy')
+    # fem_solver.obj_data.ps_vol = ps.register_volume_mesh("rigid_tets", fem_solver.obj_data.verts,
+    #                                                      tets=fem_solver.obj_data.tets[tet_sel])
+
     ps.show()
 
 

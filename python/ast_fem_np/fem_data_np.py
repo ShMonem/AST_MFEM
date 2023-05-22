@@ -6,10 +6,7 @@ from python.common.skeleton import Skeleton
 import python.ast_fem_np.config as config
 from time import time
 from python.common.def_grad3d import def_grad3d
-from python.common.linear_tet3dmesh_arap_ds2 import linear_tet3dmesh_arap_ds2
-from python.common.linear_tet3dmesh_arap_ds import linear_tet3dmesh_arap_ds
-from python.common.corotational import linear_tet3dmesh_corot_ds
-from python.common.corotational import linear_tet3dmesh_corot_ds2
+from python.common.energies import linear_tet3dmesh_arap_ds, linear_tet3dmesh_arap_ds2, linear_tet3dmesh_corot_ds, linear_tet3dmesh_corot_ds2
 from python.ast_fem_np.build_u_np import build_u
 from python.ast_fem_np.closest_index_np import closest_index, point_to_line_distance
 from python.ast_fem_np.tet_assignment_np import tet_assignment
@@ -25,7 +22,7 @@ class FEMData:
         self.handles_rot = None
         self.eulers = None
         self.debug = config.DEBUG
-        self.energy_type = 'arap'
+        self.energy_type = 'corot'
         self.ps_vol = None
         # Deformation gradient
         self.B = None
@@ -54,9 +51,28 @@ class FEMData:
             self.tets = mesh.cells[1].data.astype("int32")
         self.verts = mesh.points
         # Material properties
-        self.s = np.zeros((6 * self.tets.shape[0], 1))
-        self.mu = 1000  # material properties
-        self.k_bc = 10000  # stiffness
+        # la is only for the corot energy
+        self.la = None
+        # s is only for the arap energy
+        self.s = None
+        # both energies use mu and k_bc
+        self.mu = None
+        self.k_bc = None  # stiffness
+        if self.energy_type == 'arap':
+            self.s = np.zeros((6 * self.tets.shape[0], 1))
+            self.k_bc = 100000
+            self.mu = np.ones([self.tets.shape[0], 1]) * 1000
+            if os.path.isfile(os.path.join(self.obj_root_path, f'{self.obj_name}_rigid_tets.npy')):
+                rigid_tets = np.load(os.path.join(self.obj_root_path, f'{self.obj_name}_rigid_tets.npy'))
+                self.mu[rigid_tets] = 100000
+        elif self.energy_type == 'corot':
+            self.k_bc = 1000000000  # stiffness
+            self.la = np.ones([self.tets.shape[0], 1]) * 2.1724e+07
+            self.mu = np.ones([self.tets.shape[0], 1]) * 2.4138e+06
+            if os.path.isfile(os.path.join(self.obj_root_path, f'{self.obj_name}_rigid_tets.npy')):
+                rigid_tets = np.load(os.path.join(self.obj_root_path, f'{self.obj_name}_rigid_tets.npy'))
+                # self.mu[rigid_tets] = 1e10
+                # self.la[rigid_tets] = 1e11
         # Skeleton stuff
         self.hier = None
         if use_eulers:
@@ -75,6 +91,7 @@ class FEMData:
         # NOTE: If you do not want to use this, after commenting out, make sure to uncomment a line in set_bones!
         # TODO: This needs to be a rotation clustering selection option
         # self.tet_assign = np.load(r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\human\human_tet_maya_weights.npy')
+        # self.tet_assign = np.load(os.path.join(self.obj_root_path, f'{self.obj_name}_tet_maya_weights.npy'))
 
     def load_skeleton(self):
         self.skeleton = Skeleton()
@@ -188,9 +205,8 @@ class FEMData:
             self.hess = linear_tet3dmesh_arap_ds2(self.verts, self.tets, self.s, self.mu)
         elif self.energy_type == 'corot':
             # We need to crank the stiffness up a lot for co-rotational energy
-            self.k_bc = 10000000000  # stiffness
-            self.grad = linear_tet3dmesh_corot_ds(2.4138e+06, 2.1724e+07, self.tets.shape[0])
-            self.hess = linear_tet3dmesh_corot_ds2(2.4138e+06, 2.1724e+07, self.tets.shape[0])
+            self.grad = linear_tet3dmesh_corot_ds(self.mu, self.la, self.tets)
+            self.hess = linear_tet3dmesh_corot_ds2(self.mu, self.la, self.tets)
         else:
             raise NotImplementedError(f"The {self.energy_type} energy is not supported.")
         if self.debug:

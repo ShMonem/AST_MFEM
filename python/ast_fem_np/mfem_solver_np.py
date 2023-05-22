@@ -14,6 +14,7 @@ class MFEMSolver:
         self.obj_data = fem_data_node
         self.use_mg = use_mg
         self.debug = debug
+        self.curr_frame = None
 
     def solve(self):
         if self.debug:
