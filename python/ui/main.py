@@ -6,7 +6,7 @@ from python.ast_fem_np.mfem_solver_np import MFEMSolver
 from python.common.bone import COMPUTE_CIRCLE
 
 frame = 0
-obj_name = 'human'
+obj_name = 'floursack'
 skel_anim = np.load(f'../../data/{obj_name}/{obj_name}_skel_anim.npy')
 obj_data = FEMData(obj_name, load_skel=True, use_eulers=False)
 fem_solver = MFEMSolver(obj_data)

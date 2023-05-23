@@ -16,7 +16,7 @@ class MFEMSolver:
         self.use_mg = use_mg
         self.debug = debug
         self.curr_frame = 1
-
+        self.pinned_positions = None
     def solve(self):
         if self.debug:
             start_all_sim = time()
@@ -61,18 +61,20 @@ class MFEMSolver:
                 midpoints[i - 1, :] = (joint_pos[i, :] + joint_pos[self.obj_data.hier[i] - 1, :]) / 2
 
         # ----------------------------------------------------------------------------------
-        pinned_positions = np.zeros((joint_pos.shape[0] + midpoints.shape[0] + self.obj_data.poke_ids.shape[0], 3))
-        pinned_positions[:joint_pos.shape[0], :] = joint_pos
-        pinned_positions[joint_pos.shape[0]: joint_pos.shape[0] + midpoints.shape[0], :] = midpoints
+        # poking example
+        self.pinned_positions = np.zeros((joint_pos.shape[0] + midpoints.shape[0] + self.obj_data.poke_ids.shape[0], 3))
+
+        self.pinned_positions[:joint_pos.shape[0], :] = joint_pos
+        self.pinned_positions[joint_pos.shape[0]: joint_pos.shape[0] + midpoints.shape[0], :] = midpoints
         #----------------------------------------------------------------------------------
         # update center of the ball moving towards the character
         self.obj_data.poke_ball_center = update_ball_center(self.curr_frame, self.obj_data.poke_magnitude,
-                                                            self.obj_data.poke_ball_center, self.obj_data.poke_direction)
+                                                           self.obj_data.poke_ball_center, self.obj_data.poke_direction)
         # compute the new positions for the poked verts, pin to the surface of the ball
         poke_effect = poke_shift(self.obj_data.verts[self.obj_data.poke_ids],
                                  self.obj_data.poke_ball_center, self.obj_data.poke_raduis)
         # update poked verts positions
-        pinned_positions[joint_pos.shape[0] + midpoints.shape[0]:, :] = poke_effect
+        self.pinned_positions[joint_pos.shape[0] + midpoints.shape[0]:, :] = poke_effect
 
         self.curr_frame = self.curr_frame + 1 # TODO: where is better to update frame count?
         # ----------------------------------------------------------------------------------
@@ -85,25 +87,37 @@ class MFEMSolver:
             offsets[:self.obj_data.handles_pos.shape[0]] = np.einsum('...ij,...j',
                                                     self.obj_data.handles_rot.reshape(-1, 3, 3).transpose((0, 2, 1)),
                                                     offsets[:self.obj_data.handles_pos.shape[0]])
-            offsets[self.obj_data.handles_pos.shape[0]:] = np.einsum('...ij,...j',
-                                                                local_rots.reshape(-1, 3, 3).transpose((0, 2, 1)),
-                                                                offsets[self.obj_data.handles_pos.shape[0]:])
+            offsets[self.obj_data.handles_pos.shape[0]: self.obj_data.handles_pos.shape[0] + midpoints.shape[0]] = \
+                                                     np.einsum('...ij,...j', local_rots.reshape(-1, 3, 3).transpose((0, 2, 1)),
+                                                     offsets[self.obj_data.handles_pos.shape[0]:\
+                                                     self.obj_data.handles_pos.shape[0]+ midpoints.shape[0]])
+
+            #TODO: check ?
+            # #offsets[self.obj_data.handles_pos.shape[0] + midpoints.shape[0]:] = np.einsum('...ij,...j',
+            #                                         local_rots.reshape(-1, 3, 3).transpose((0, 2, 1)),
+            #                                         offsets[self.obj_data.handles_pos.shape[0]+ midpoints.shape[0]:])
         else:
             main_rots = np.matmul(np.transpose(self.obj_data.skeleton.inv_rest_skel[:, :3, :3], axes=(0, 1, 2)),
                                                self.obj_data.skeleton.get_rotations())
             offsets = self.obj_data.pinned_vert_offsets.copy()
             offsets[:self.obj_data.handles_pos.shape[0]] = np.einsum('...ij,...j',
-                                                                     main_rots.transpose((0, 2, 1)),
-                                                                     offsets[:self.obj_data.handles_pos.shape[0]])
-            offsets[self.obj_data.handles_pos.shape[0]:] = np.einsum('...ij,...j',
+                                                    main_rots.transpose((0, 2, 1)),
+                                                    offsets[:self.obj_data.handles_pos.shape[0]])
+            offsets[self.obj_data.handles_pos.shape[0]: self.obj_data.handles_pos.shape[0] + midpoints.shape[0]] = \
+                                                    np.einsum('...ij,...j',
                                                     self.obj_data.handles_rot.reshape(-1, 3, 3).transpose((0, 2, 1)),
-                                                    offsets[self.obj_data.handles_pos.shape[0]:])
+                                                    offsets[self.obj_data.handles_pos.shape[0]:\
+                                                            self.obj_data.handles_pos.shape[0] + midpoints.shape[0]])
+            # # TODO: check ?
+            # offsets[self.obj_data.handles_pos.shape[0] + midpoints.shape[0]:] = np.einsum('...ij,...j',
+            #                                         self.obj_data.handles_rot.reshape(-1, 3, 3).transpose((0, 2, 1)),
+            #                                         offsets[self.obj_data.handles_pos.shape[0] + midpoints.shape[0]:])
 
-        #pinned_positions = pinned_positions + offsets
-        pinned_positions[: joint_pos.shape[0] + midpoints.shape[0], :] = \
-            pinned_positions[: joint_pos.shape[0] + midpoints.shape[0], :] + offsets
+        self.pinned_positions = self.pinned_positions + offsets
+        # self.pinned_positions[: joint_pos.shape[0] + midpoints.shape[0], :] = \
+        # self.pinned_positions[: joint_pos.shape[0] + midpoints.shape[0], :] + offsets
 
-        pinned_b = igl2bart(pinned_positions)
+        pinned_b = igl2bart(self.pinned_positions)
         return pinned_b
 
     def compute_J(self, joint_rots):

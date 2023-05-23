@@ -11,18 +11,19 @@ from python.ast_fem_np.build_u_np import build_u
 from python.ast_fem_np.closest_index_np import closest_index, point_to_line_distance
 from python.ast_fem_np.tet_assignment_np import tet_assignment
 from python.ast_fem_np.pinvert_np import pinvert
-from python.common.poke import get_poked_inds, poke_init
+from python.common.poke import get_poked_inds, poke_init, poke_shift
 
 
 class FEMData:
     def __init__(self, obj_name, load_skel=False, use_eulers=True, visibility=True):
 
+        # requirements for poking example
         self.poke_ids = None
-        self.poke_center_id = 0
-        self.poke_raduis = 1.5
+        self.poke_center_id = 614
+        self.poke_raduis = 2
         self.poke_ball_center = None
         self.poke_direction = None
-        self.poke_magnitude = 1
+        self.poke_magnitude = 0.0
         # UI properties
         self.visibility = visibility
         # Data specific properties
@@ -134,8 +135,8 @@ class FEMData:
         T[:, :] = np.eye(3)
         for i in range(n):
             loc_rot_mtx = self.compute_rotation(in_eulers[i, 0], in_eulers[i, 1], in_eulers[i, 2])  # (3, 3)
-            if self.hier[i] == 0:  # what does this case mean? # this is the root node
-                T[i] = loc_rot_mtx  # F order
+            if self.hier[i] == 0:  # this is the root node
+                T[i] = loc_rot_mtx
                 new_handles[i] = in_positions[i]
             else:
                 newR[i - 1] = T[int(self.hier[i] - 1)]
@@ -241,14 +242,15 @@ class FEMData:
             print(f"Computing tet assignments took {end - start} seconds.")
 
         self.poke_ids = get_poked_inds(self.verts, self.poke_center_id, self.poke_raduis)
-        self.poke_ball_center, self.poke_direction = poke_init(self.poke_center_id, self.poke_raduis)
+        self.poke_ball_center, self.poke_direction = poke_init(self.verts[self.poke_center_id], self.poke_raduis)
+        poke_effect = poke_shift(self.verts[self.poke_ids],self.poke_ball_center, self.poke_raduis)
 
         num_handles = self.handles_pos.shape[0]
         num_midpoints = midpoints_np.shape[0]
         self.init_pinned_pos = np.zeros((num_handles + num_midpoints + self.poke_ids.shape[0], 3))
         self.init_pinned_pos[:num_handles, :] = self.handles_pos
         self.init_pinned_pos[num_handles:num_handles + num_midpoints, :] = midpoints_np
-        self.init_pinned_pos[num_handles + num_midpoints:, :] = self.verts[self.poke_ids]
+        self.init_pinned_pos[num_handles + num_midpoints:, :] = poke_effect
 
         if self.debug:
             start = time()
