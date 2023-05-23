@@ -7,6 +7,7 @@ from python.common.igl2bart import igl2bart
 from python.ast_fem_np.compute_j_np import compute_J_SVD
 from python.ast_fem_np.v_cycle_np import v_cycle
 from python.ast_fem_np.gauss_seidel_np import A_L_sum_U
+from python.common.poke import poke_shift, update_ball_center
 
 
 class MFEMSolver:
@@ -14,7 +15,7 @@ class MFEMSolver:
         self.obj_data = fem_data_node
         self.use_mg = use_mg
         self.debug = debug
-        self.curr_frame = None
+        self.curr_frame = 1
 
     def solve(self):
         if self.debug:
@@ -49,6 +50,8 @@ class MFEMSolver:
             pinned_mat[r_start:r_end, col_start:col_end] = np.eye(3)
         return pinned_mat
 
+
+
     def compute_pinned_b(self, joint_pos):
         midpoints = np.zeros((joint_pos.shape[0] - 1, 3))
         for i in range(joint_pos.shape[0]):
@@ -57,9 +60,22 @@ class MFEMSolver:
             else:
                 midpoints[i - 1, :] = (joint_pos[i, :] + joint_pos[self.obj_data.hier[i] - 1, :]) / 2
 
-        pinned_positions = np.zeros((joint_pos.shape[0] + midpoints.shape[0], 3))
+        # ----------------------------------------------------------------------------------
+        pinned_positions = np.zeros((joint_pos.shape[0] + midpoints.shape[0] + self.obj_data.poke_ids.shape[0], 3))
         pinned_positions[:joint_pos.shape[0], :] = joint_pos
-        pinned_positions[joint_pos.shape[0]:, :] = midpoints
+        pinned_positions[joint_pos.shape[0]: joint_pos.shape[0] + midpoints.shape[0], :] = midpoints
+        #----------------------------------------------------------------------------------
+        # update center of the ball moving towards the character
+        self.obj_data.poke_ball_center = update_ball_center(self.curr_frame, self.obj_data.poke_magnitude,
+                                                            self.obj_data.poke_ball_center, self.obj_data.poke_direction)
+        # compute the new positions for the poked verts, pin to the surface of the ball
+        poke_effect = poke_shift(self.obj_data.verts[self.obj_data.poke_ids],
+                                 self.obj_data.poke_ball_center, self.obj_data.poke_raduis)
+        # update poked verts positions
+        pinned_positions[joint_pos.shape[0] + midpoints.shape[0]:, :] = poke_effect
+
+        self.curr_frame = self.curr_frame + 1 # TODO: where is better to update frame count?
+        # ----------------------------------------------------------------------------------
 
         # We have to account for the initial offsets when we pin certain verts. Thus, we have to skin them to the
         # relevant joints and midpoints used in the pinned_positions.
@@ -83,7 +99,9 @@ class MFEMSolver:
                                                     self.obj_data.handles_rot.reshape(-1, 3, 3).transpose((0, 2, 1)),
                                                     offsets[self.obj_data.handles_pos.shape[0]:])
 
-        pinned_positions = pinned_positions + offsets
+        #pinned_positions = pinned_positions + offsets
+        pinned_positions[: joint_pos.shape[0] + midpoints.shape[0], :] = \
+            pinned_positions[: joint_pos.shape[0] + midpoints.shape[0], :] + offsets
 
         pinned_b = igl2bart(pinned_positions)
         return pinned_b
