@@ -20,6 +20,7 @@ class FEMData:
         # Data specific properties
         self.handles_pos = None
         self.handles_rot = None
+        self.pinned_mat = None
         self.eulers = None
         self.debug = config.DEBUG
         self.energy_type = 'corot'
@@ -244,12 +245,24 @@ class FEMData:
         self.init_pin_verts = pinvert(self.verts, self.init_pinned_pos)
         self.pinned_vert_offsets = self.verts[self.init_pin_verts] - self.init_pinned_pos
 
+        self.pinned_mat = self.build_pinned_mat()
+
         if self.debug:
             end = time()
             print(f"Computing the pinned verts took {end - start} seconds.")
 
         if self.debug:
             print(f"Finished the one time setup.\nThe setup took {end - start_setup} seconds.")
+
+    def build_pinned_mat(self):
+        pinned_mat = scipy.sparse.lil_matrix((3 * self.init_pinned_pos.shape[0],
+                                              3 * self.verts.shape[0]))
+        for i in range(self.init_pinned_pos.shape[0]):
+            r_start, r_end = (3 * i, 3 * (i + 1))
+            col_start = 3 * int(self.init_pin_verts[i])
+            col_end = 3 * int(self.init_pin_verts[i]) + 3
+            pinned_mat[r_start:r_end, col_start:col_end] = np.eye(3)
+        return pinned_mat
 
     # Note this may be broken atm
     def init_multi_grid(self):

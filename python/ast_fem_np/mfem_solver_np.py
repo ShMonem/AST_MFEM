@@ -10,7 +10,7 @@ from python.ast_fem_np.gauss_seidel_np import A_L_sum_U
 
 
 class MFEMSolver:
-    def __init__(self, fem_data_node, use_mg=False, debug=False):
+    def __init__(self, fem_data_node, use_mg=False, debug=True):
         self.obj_data = fem_data_node
         self.use_mg = use_mg
         self.debug = debug
@@ -22,8 +22,8 @@ class MFEMSolver:
 
         joint_rots = self.obj_data.handles_rot
         joint_pos = self.obj_data.handles_pos
+        pinned_mat = self.obj_data.pinned_mat
         J = self.compute_J(joint_rots)
-        pinned_mat = self.build_pinned_mat()
         # transformed_vert_offsets = np.matmul(some_local_rots, self.obj_data.pinned_vert_offsets, axis=1)
         pinned_b = self.compute_pinned_b(joint_pos)
         # Factorized A
@@ -39,15 +39,6 @@ class MFEMSolver:
             end_all_sim = time()
             print(f"The complete sim took {end_all_sim-start_all_sim} seconds.")
         return sol
-
-    def build_pinned_mat(self):
-        pinned_mat = sps.lil_matrix((3 * self.obj_data.init_pinned_pos.shape[0], 3 * self.obj_data.verts.shape[0]))
-        for i in range(self.obj_data.init_pinned_pos.shape[0]):
-            r_start, r_end = (3 * i, 3 * (i + 1))
-            col_start = 3 * int(self.obj_data.init_pin_verts[i])
-            col_end = 3 * int(self.obj_data.init_pin_verts[i]) + 3
-            pinned_mat[r_start:r_end, col_start:col_end] = np.eye(3)
-        return pinned_mat
 
     def compute_pinned_b(self, joint_pos):
         midpoints = np.zeros((joint_pos.shape[0] - 1, 3))
@@ -108,11 +99,13 @@ class MFEMSolver:
         return J
 
     def get_tet_rots(self, in_joint_rots):
+        start = time()
         num_tets = self.obj_data.tets.shape[0]
         tet_rots = np.zeros((num_tets, 9))
         # assigning rotations to each tet according to fAssign info
-        for i in range(num_tets):
-            tet_rots[i, :] = in_joint_rots[self.obj_data.tet_assign[i], :]
+        tet_rots[:, :] = in_joint_rots[self.obj_data.tet_assign[:], :]
+        end = time()
+        print(f"get tet rots took {end-start} seconds.")
         return tet_rots
 
     def direct_solve(self, A, b):

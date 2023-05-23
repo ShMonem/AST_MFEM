@@ -36,11 +36,13 @@ def tet_assign_from_skin(tet_mesh_path, obj_path, skel_names_path, infs_path, sk
 
 
 if __name__ == "__main__":
-    obj_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle.obj'
-    tet_mesh_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle.msh'
-    skel_names_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle_skel_names.npy'
-    infs_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle_skin_infs.npy'
-    skin_weights_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle_skin_weights.npy'
+    obj_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\floursack\floursack_tet_surf.obj'
+    tet_mesh_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\floursack\floursack.msh'
+    # skel_names_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle_skel_names.npy'
+    # infs_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle_skin_infs.npy'
+    # skin_weights_path = r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle_skin_weights.npy'
 
-    tet_weights = tet_assign_from_skin(tet_mesh_path, obj_path, skel_names_path, infs_path, skin_weights_path)
-    np.save(r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle_tet_maya_weights.npy', tet_weights)
+    # tet_weights = tet_assign_from_skin(tet_mesh_path, obj_path, skel_names_path, infs_path, skin_weights_path)
+    # np.save(r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\turtle\turtle_tet_maya_weights.npy', tet_weights)
+    obj_to_tet = obj_to_tet_mapping(tet_mesh_path, obj_path)
+    np.save(r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\floursack\floursack_obj_to_tet.npy', obj_to_tet)

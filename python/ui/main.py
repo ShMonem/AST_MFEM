@@ -82,9 +82,9 @@ def main():
     v_base_z, e_2 = COMPUTE_CIRCLE()
     v_base_z = v_base_z + np.array([0, 0, 20])
 
-    ps.register_curve_network("basex", v_base_x, e_2, radius=0.002)
-    ps.register_curve_network("basey", v_base_y, e_2, radius=0.002)
-    ps.register_curve_network("basez", v_base_z, e_2, radius=0.002)
+    # ps.register_curve_network("basex", v_base_x, e_2, radius=0.002)
+    # ps.register_curve_network("basey", v_base_y, e_2, radius=0.002)
+    # ps.register_curve_network("basez", v_base_z, e_2, radius=0.002)
     ################################
 
     # visualization
