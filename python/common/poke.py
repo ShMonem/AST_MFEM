@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.linalg as npla
 
-def poke_init (vert, poke_raduis, ball_center = np.array([0.0, 0.0, 0.0]) ): # poking direction : z
+def poke_init (vert, poke_raduis, ball_center = np.array([0.0, -1.0, 0.0]) ): # poking direction : z
 
     # draw a ball poke_raduis away from vert
     direction = ball_center

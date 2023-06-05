@@ -23,7 +23,7 @@ class FEMData:
         self.poke_raduis = 2
         self.poke_ball_center = None
         self.poke_direction = None
-        self.poke_magnitude = 0.0
+        self.poke_magnitude = 0.08
         # UI properties
         self.visibility = visibility
         # Data specific properties
@@ -77,7 +77,7 @@ class FEMData:
         elif self.energy_type == 'corot':
             self.k_bc = 1000000000  # stiffness
             self.la = np.ones([self.tets.shape[0], 1]) * 2.1724e+07
-            self.mu = np.ones([self.tets.shape[0], 1]) * 2.4138e+06
+            self.mu = np.ones([self.tets.shape[0], 1]) * 2.4138e+07
             if os.path.isfile(os.path.join(self.obj_root_path, f'{self.obj_name}_rigid_tets.npy')):
                 rigid_tets = np.load(os.path.join(self.obj_root_path, f'{self.obj_name}_rigid_tets.npy'))
                 # self.mu[rigid_tets] = 1e10
