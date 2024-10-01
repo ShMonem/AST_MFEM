@@ -3,3 +3,5 @@ __pycache__/
 .polyscope.ini
 imgui.ini
 .idea/
+/python/ast_fem_cp/
+/python/taichi_3d/
