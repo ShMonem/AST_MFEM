@@ -1,5 +1,5 @@
 
-# Auto-Skinning Transformations for Mixed Finite Elements Method (AST_MFEM)
+# Auto-Skinning Transformations using Mixed Finite Elements Method (AST_MFEM)
 
 Thank you for your interest in our code, and we hope you have fun trying it out! 😊
 ## Algorithm Features:
