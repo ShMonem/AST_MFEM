@@ -43,7 +43,7 @@ def fwd_anim():
     update_elements()
 
 def callback_frame():
-    global frame, fem_solver, skel_anim
+    global frame, fem_solver, skel_anim, obj_name
     changed, frame = psim.SliderInt("Anim Frame", frame, v_min=0, v_max=skel_anim.shape[0]-1)
     if (psim.Button("<")):
         bwd_anim()
@@ -54,7 +54,7 @@ def callback_frame():
         if frame >= 0 and frame < skel_anim.shape[0]:
             update_elements()
         else:
-            tms = np.load("../../data/human/human_skel_ws_tms.npy")
+            tms = np.load(f"../../data/{obj_name}/{obj_name}_skel_ws_tms.npy")
             fem_solver.obj_data.set_bones(tms)
             if fem_solver.obj_data.skeleton.visibility:
                 for i, bone in enumerate(fem_solver.obj_data.skeleton.bones):
@@ -79,16 +79,16 @@ def main():
         tmp.set_enabled(obj_data.skeleton.visibility)
 
     ######### Axis markers #########
-    v_base_x, e_2 = COMPUTE_CIRCLE()
-    v_base_x = v_base_x + np.array([20, 0, 0])
-    v_base_y, e_2 = COMPUTE_CIRCLE()
-    v_base_y = v_base_y + np.array([0, 20, 0])
-    v_base_z, e_2 = COMPUTE_CIRCLE()
-    v_base_z = v_base_z + np.array([0, 0, 20])
-
-    ps.register_curve_network("basex", v_base_x, e_2, radius=0.002)
-    ps.register_curve_network("basey", v_base_y, e_2, radius=0.002)
-    ps.register_curve_network("basez", v_base_z, e_2, radius=0.002)
+    # v_base_x, e_2 = COMPUTE_CIRCLE()
+    # v_base_x = v_base_x + np.array([20, 0, 0])
+    # v_base_y, e_2 = COMPUTE_CIRCLE()
+    # v_base_y = v_base_y + np.array([0, 20, 0])
+    # v_base_z, e_2 = COMPUTE_CIRCLE()
+    # v_base_z = v_base_z + np.array([0, 0, 20])
+    #
+    # ps.register_curve_network("basex", v_base_x, e_2, radius=0.002)
+    # ps.register_curve_network("basey", v_base_y, e_2, radius=0.002)
+    # ps.register_curve_network("basez", v_base_z, e_2, radius=0.002)
     ################################
 
     # visualization
