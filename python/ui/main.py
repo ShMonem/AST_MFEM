@@ -10,7 +10,7 @@ from python.ast_fem_np.mfem_solver_np import MFEMSolver
 from python.common.bone import COMPUTE_CIRCLE
 
 frame = 0
-obj_name = 'human'
+obj_name = 'beam'
 skel_anim = np.load(f'../../data/{obj_name}/{obj_name}_skel_anim.npy')
 pinnedverts = None
 if obj_name== 'beam':
