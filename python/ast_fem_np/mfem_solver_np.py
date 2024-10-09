@@ -11,14 +11,17 @@ from python.common.igl2bart import igl2bart
 from python.ast_fem_np.compute_j_np import compute_J_SVD
 from python.ast_fem_np.v_cycle_np import v_cycle
 from python.ast_fem_np.gauss_seidel_np import A_L_sum_U
-
-
+from python.utils.utils import compute_mesh_volume
+from python.ast_fem_np.pinvert_np import read_pinvert
 class MFEMSolver:
     def __init__(self, fem_data_node, use_mg=False, debug=False):
         self.obj_data = fem_data_node
         self.use_mg = use_mg
         self.debug = debug
         self.curr_frame = None
+        if self.obj_data.pin_inds_file is not None:
+            self.pinned_inds = read_pinvert(self.obj_data.pin_inds_file)
+            self.pinned_points_pos = self.obj_data.verts[self.pinned_inds]  # positions of pinned verts, if user defined pinned verts is used
 
     def solve(self):
         if self.debug:
@@ -29,7 +32,10 @@ class MFEMSolver:
         J = self.compute_J(joint_rots)
         pinned_mat = self.build_pinned_mat()
         # transformed_vert_offsets = np.matmul(some_local_rots, self.obj_data.pinned_vert_offsets, axis=1)
-        pinned_b = self.compute_pinned_b(joint_pos)
+        if self.obj_data.pin_inds_file is not None:
+            pinned_b = self.compute_pinned_b_w_given_pinning(joint_pos)
+        else:
+            pinned_b = self.compute_pinned_b(joint_pos)
         # Factorized A
         A = self.obj_data.k_bc * pinned_mat.T @ pinned_mat + J.T @ self.obj_data.hess @ J
         b = np.squeeze(self.obj_data.k_bc * pinned_mat.T @ pinned_b - J.T @ self.obj_data.grad)
@@ -42,6 +48,10 @@ class MFEMSolver:
         if self.debug:
             end_all_sim = time()
             print(f"The complete sim took {end_all_sim-start_all_sim} seconds.")
+
+        if self.obj_data.pin_inds_file is not None:
+            self.pinned_points_pos = sol.reshape(-1, 3)[self.pinned_inds]
+        print(compute_mesh_volume(sol.reshape(-1, 3), self.obj_data.faces))
         return sol
 
     def build_pinned_mat(self):
@@ -92,6 +102,40 @@ class MFEMSolver:
         pinned_b = igl2bart(pinned_positions)
         return pinned_b
 
+    def compute_pinned_b_w_given_pinning(self, joint_pos):
+        pinned_points = self.pinned_points_pos
+
+        pinned_positions = np.zeros((joint_pos.shape[0] + pinned_points.shape[0], 3))
+        pinned_positions[:joint_pos.shape[0], :] = joint_pos
+        pinned_positions[joint_pos.shape[0]:, :] = pinned_points
+
+        # We have to account for the initial offsets when we pin certain verts. Thus, we have to skin them to the
+        # relevant joints and pinned_points used in the pinned_positions.
+        if self.obj_data.handles_rot.shape[0] != pinned_points.shape[0]:
+            local_rots = self.obj_data.get_parent_rots(self.obj_data.handles_rot)
+            local_rots = np.repeat([[1, 0, 0, 0, 1, 0, 0, 0, 1]], pinned_points.shape[0], axis=0)
+            offsets = self.obj_data.pinned_vert_offsets.copy()
+            offsets[:self.obj_data.handles_pos.shape[0]] = np.einsum('...ij,...j',
+                                                    self.obj_data.handles_rot.reshape(-1, 3, 3).transpose((0, 2, 1)),
+                                                    offsets[:self.obj_data.handles_pos.shape[0]])
+            offsets[self.obj_data.handles_pos.shape[0]:] = np.einsum('...ij,...j',
+                                                                local_rots.reshape(-1, 3, 3).transpose((0, 2, 1)),
+                                                                offsets[self.obj_data.handles_pos.shape[0]:])
+        else:
+            main_rots = np.matmul(np.transpose(self.obj_data.skeleton.inv_rest_skel[:, :3, :3], axes=(0, 1, 2)),
+                                               self.obj_data.skeleton.get_rotations())
+            offsets = self.obj_data.pinned_vert_offsets.copy()
+            offsets[:self.obj_data.handles_pos.shape[0]] = np.einsum('...ij,...j',
+                                                                     main_rots.transpose((0, 2, 1)),
+                                                                     offsets[:self.obj_data.handles_pos.shape[0]])
+            offsets[self.obj_data.handles_pos.shape[0]:] = np.einsum('...ij,...j',
+                                                    self.obj_data.handles_rot.reshape(-1, 3, 3).transpose((0, 2, 1)),
+                                                    offsets[self.obj_data.handles_pos.shape[0]:])
+
+        pinned_positions = pinned_positions + offsets
+
+        pinned_b = igl2bart(pinned_positions)
+        return pinned_b
     def compute_J(self, joint_rots):
         R = self.get_tet_rots(joint_rots)
 

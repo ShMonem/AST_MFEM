@@ -14,11 +14,11 @@ from python.common.energies import linear_tet3dmesh_arap_ds, linear_tet3dmesh_ar
 from python.ast_fem_np.build_u_np import build_u
 from python.ast_fem_np.closest_index_np import closest_index, point_to_line_distance
 from python.ast_fem_np.tet_assignment_np import tet_assignment
-from python.ast_fem_np.pinvert_np import pinvert
+from python.ast_fem_np.pinvert_np import pinvert, read_pinvert
 
 
 class FEMData:
-    def __init__(self, obj_name, load_skel=False, use_eulers=True, visibility=True):
+    def __init__(self, obj_name, load_skel=False, use_eulers=True, visibility=True, pinnedverts_file=None):
         # UI properties
         self.visibility = visibility
         # Data specific properties
@@ -26,7 +26,7 @@ class FEMData:
         self.handles_rot = None
         self.eulers = None
         self.debug = config.DEBUG
-        self.energy_type = 'corot'
+        self.energy_type = 'arap'
         self.ps_vol = None
         # Deformation gradient
         self.B = None
@@ -38,6 +38,8 @@ class FEMData:
         self.init_pinned_pos = None
         # Initial pinned vertex ids
         self.init_pin_verts = None
+        # If pinned indices file is provided
+        self.pin_inds_file = pinnedverts_file
         # Offsets for the pinned verts
         self.pinned_vert_offsets = None
         # Path properties
@@ -54,6 +56,8 @@ class FEMData:
             mesh = meshio.read(os.path.join(self.obj_root_path, f'{self.obj_name}.mesh'))
             self.tets = mesh.cells[1].data.astype("int32")
         self.verts = mesh.points
+        self.faces = mesh.cells[0].data.astype("int32")
+
         # Material properties
         # la is only for the corot energy
         self.la = None
@@ -97,6 +101,8 @@ class FEMData:
         # self.tet_assign = np.load(r'C:\Users\DimitryKachkovski\git\personal\AST_MFEM\data\human\human_tet_maya_weights.npy')
         # self.tet_assign = np.load(os.path.join(self.obj_root_path, f'{self.obj_name}_tet_maya_weights.npy'))
 
+
+
     def load_skeleton(self):
         self.skeleton = Skeleton()
         self.skeleton.load_skeleton(os.path.join(self.obj_root_path, f'{self.obj_name}_skel_ws_tms.npy'),
@@ -118,8 +124,8 @@ class FEMData:
                 self.handles_pos = self.skeleton.get_positions()
                 self.handles_rot = np.matmul(np.transpose(self.skeleton.inv_rest_skel[:, :3, :3], axes=(0, 1, 2)),
                                              self.skeleton.get_rotations()).reshape((-1, 9))
-                # Uncomment the next line if we do not use the maya assigned weights.
-                self.handles_rot = self.get_parent_rots(self.handles_rot)
+                # Uncomment the next line if we do not use the maya assigned weights. # TODO: automatize the option
+                # self.handles_rot = self.get_parent_rots(self.handles_rot)
 
     def forward_kinematics(self, in_positions, in_eulers):
         n = in_positions.shape[0]
@@ -238,15 +244,26 @@ class FEMData:
 
         num_handles = self.handles_pos.shape[0]
         num_midpoints = midpoints_np.shape[0]
-        self.init_pinned_pos = np.zeros((num_handles + num_midpoints, 3))
-        self.init_pinned_pos[:num_handles, :] = self.handles_pos
-        self.init_pinned_pos[num_handles:, :] = midpoints_np
 
         if self.debug:
             start = time()
 
-        self.init_pin_verts = pinvert(self.verts, self.init_pinned_pos)
-        self.pinned_vert_offsets = self.verts[self.init_pin_verts] - self.init_pinned_pos
+        if self.pin_inds_file != None:
+            self.init_pin_verts = read_pinvert(self.pin_inds_file)
+
+            self.init_pinned_pos = np.zeros((num_handles + self.init_pin_verts.shape[0], 3))
+            self.init_pinned_pos[:num_handles, :] = self.handles_pos
+            self.init_pinned_pos[num_handles:, :] = self.verts[self.init_pin_verts]
+
+            self.init_pin_verts = pinvert(self.verts, self.init_pinned_pos)
+            self.pinned_vert_offsets = self.verts[self.init_pin_verts] - self.init_pinned_pos
+        else:
+            self.init_pinned_pos = np.zeros((num_handles + num_midpoints, 3))
+            self.init_pinned_pos[:num_handles, :] = self.handles_pos
+            self.init_pinned_pos[num_handles:, :] = midpoints_np
+
+            self.init_pin_verts = pinvert(self.verts, self.init_pinned_pos)
+            self.pinned_vert_offsets = self.verts[self.init_pin_verts] - self.init_pinned_pos
 
         if self.debug:
             end = time()

@@ -12,7 +12,10 @@ from python.common.bone import COMPUTE_CIRCLE
 frame = 0
 obj_name = 'human'
 skel_anim = np.load(f'../../data/{obj_name}/{obj_name}_skel_anim.npy')
-obj_data = FEMData(obj_name, load_skel=True, use_eulers=False)
+pinnedverts = None
+if obj_name== 'beam':
+    pinnedverts = f'../../data/{obj_name}/{obj_name}_pinned_verts.npy'
+obj_data = FEMData(obj_name, load_skel=True, use_eulers=False, pinnedverts_file=pinnedverts)
 fem_solver = MFEMSolver(obj_data)
 
 

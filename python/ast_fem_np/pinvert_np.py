@@ -12,3 +12,9 @@ def pinvert(V, h):
         axis=1)
 
     return weight
+
+
+def read_pinvert(pinvert_file):
+    weight = np.load(pinvert_file)
+
+    return weight
